@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::errors::{ShuntingYardError, ExpressionCompilationError};
+use crate::errors::{ShuntingYardError, ExpressionCompilationError, CompiledExpressionLookupError};
 pub use crate::context::*;
 use anyhow;
 
@@ -249,6 +249,11 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
 /// values in the token stack to reduce the number of steps performed when the 
 /// closure is called. 
 /// 
+/// In order for this process to work, mutable references are made to the contents of all
+/// variable tokens in the expression. Because of this, it is on the caller to ensure that
+/// all variables and constants present in the given expression are also present in the 
+/// given `ContextHashMap` so that they are read correctly when the closure is called.  
+/// 
 /// # Example
 /// ```
 /// use std::collections::HashMap;
@@ -274,25 +279,36 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
 /// ```
 pub fn compile_to_fn_of_hashmap(expr: &str, context: &ContextHashMap) -> anyhow::Result<impl Fn(&HashMap<String, f64>) -> anyhow::Result<f64>> 
 {
-    let mut var_order = get_legal_variables_iter(expr);  
-    let mut arg_hm: HashMap<String, Rc<RefCell<f64>>> = HashMap::new();
-
-    let rpn = rpnify(expr, context)?;
-    for token in &rpn 
+    // Check that all vars are given in context, we clone the Rc's from there
+    for var in get_legal_variables_iter(expr)
     {
-        if let Token::Var(num) = token 
+        if !context.contains_key(var)
         {
-            arg_hm.insert(
-                var_order.next().unwrap().to_string(), 
-                Rc::clone(num)
-            );
+            return Err(ExpressionCompilationError::VarNotFoundInContext.into());
         }
     }
+
+    let rpn = rpnify(expr, context)?;
+
+    // Clone the Rc's to a lookup table for closure function
+    let arg_hm: HashMap<String, Option<Rc<RefCell<f64>>>> = context.iter()
+        .map(|x| {
+            match x 
+            {
+                (var, Token::Var(r)) => (var.to_string(), Some(Rc::clone(r))),
+                (var, _) => (var.to_string(), None),
+            }
+        })
+        .collect();
 
     Ok(move |x: &HashMap<String, f64>| {
         for (var, value) in x 
         {
-            *arg_hm[var].borrow_mut() = *value;
+            match &arg_hm[var]
+            {
+                Some(r) => *r.borrow_mut() = *value,
+                None => return Err(CompiledExpressionLookupError.into()),
+            }
         }
         eval_rpn_expression(&rpn)
     })
@@ -300,34 +316,45 @@ pub fn compile_to_fn_of_hashmap(expr: &str, context: &ContextHashMap) -> anyhow:
 
 pub fn compile_to_fn(expr: &str, context: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>> 
 {
-    let mut var_order = get_legal_variables_iter(expr);  
-
-    let mut var: Rc<RefCell<f64>> = Rc::new(RefCell::new(f64::MIN));
-    let rpn = rpnify(expr, context)?;
-    for token in &rpn 
+    // Ensure that all variables in the expression exist in the context
+    for var in get_legal_variables_iter(expr)
     {
-        match token
+        if !context.contains_key(var)
         {
-            Token::Var(num) => {
-                var = Rc::clone(num); 
-                var_order.next();
-            },
-            Token::Num(_) => {
-                var_order.next();
-            },
-            _ => {},
-        };
+            return Err(ExpressionCompilationError::VarNotFoundInContext.into());
+        }
     }
 
-    if *var.borrow() == f64::MIN
+    let is_var = |x: &(&String, &Token)| {
+        match x.1 
+        { 
+            Token::Var(_) => true, 
+            _ => false ,
+        }
+    };
+
+    // Ensure that there is only one given variable to track
+    let present_vars = Vec::from_iter(context.iter().filter(is_var));
+    if present_vars.len() != 1
     {
-        return Err(ExpressionCompilationError::NoVarsFound.into())
+        return Err(ExpressionCompilationError::WrongVarCount.into());
     }
 
-    Ok(move |x: f64| {
-        *var.borrow_mut() = x;
-        eval_rpn_expression(&rpn)
-    })
+    // Get variable's reference from context and set up closure to mutate it on call
+    if let Token::Var(r) = present_vars.first().unwrap().1
+    {
+        let var: Rc<RefCell<f64>> = Rc::clone(r);
+        let rpn = rpnify(expr, context)?;
+    
+        Ok(move |x: f64| {
+            *var.borrow_mut() = x;
+            eval_rpn_expression(&rpn)
+        })
+    }
+    else 
+    {
+        Err(ExpressionCompilationError::NoVarsFound.into())
+    }
 }
 
 fn eval_rpn_expression(expr: &Vec<Token>) -> anyhow::Result<f64> 

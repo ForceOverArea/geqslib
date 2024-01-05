@@ -46,10 +46,18 @@ impl_err! {
 }
 
 #[derive(Debug)]
+pub struct CompiledExpressionLookupError;
+impl_err!(CompiledExpressionLookupError, "failed to find given variable in the function's variable lookup table");
+
+#[derive(Debug)]
 pub enum ExpressionCompilationError {
     NoVarsFound,
+    WrongVarCount,
+    VarNotFoundInContext,
 }
 impl_err! {
     ExpressionCompilationError,
-    ExpressionCompilationError::NoVarsFound, "failed to find a single unknown variable in the expression"
+    ExpressionCompilationError::NoVarsFound, "failed to find a single unknown variable in the expression",
+    ExpressionCompilationError::WrongVarCount, "found number of values not equal",
+    ExpressionCompilationError::VarNotFoundInContext, "found a legal variable in the expression that did not have a variable in the given context"
 }
