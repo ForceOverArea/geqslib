@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::errors::ShuntingYardError;
+use crate::errors::{ShuntingYardError, ExpressionCompilationError};
 pub use crate::context::*;
 use anyhow;
 
@@ -46,10 +46,10 @@ fn punctuate(expr: &str) -> String
     let mut output = String::new();
     for c in expr.chars() 
     {
-        if _OPERATORS_.contains(c) || "(),".contains(c) 
+        if _OPERATORS_.contains(c) || c == ','
         {
             output += &format!(" {c} ");
-        } 
+        }
         else 
         {
             output.push(c);
@@ -99,6 +99,8 @@ fn tokenize_with_context(tok: &str, context: &ContextHashMap) -> anyhow::Result<
     }
 }
 
+pub type RPNVarMap = HashMap<String, Rc<RefCell<f64>>>;
+
 /// See shunting yard implementation details at: 
 /// https://en.wikipedia.org/wiki/Shunting_yard_algorithm
 fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>> 
@@ -108,7 +110,7 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
 
     let mut stack: Vec<&str> = Vec::new();
     let mut queue: Vec<Token> = Vec::new();
-    let mut unary_minus = true;
+    let mut unary_minus = true; // Indicator for whether the next '-' token is a unary operator
 
     for word in words 
     {
@@ -227,6 +229,18 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
     Ok(queue)
 }
 
+// TODO: Both compile functions have a sematic bug in them.
+//
+// If an expression contains more than 1 instance of the same variable (e.g. x^2 + x + 1)
+// only the last occurrence of that variable will be added to the variable hashmap or the
+// single function argument. The first Rc<RefCell<f64>> will never be mutated on calling the
+// returned function.
+//
+// Furthermore, I'm not sure that this algorithm is valid for expressions with parenthesis, as
+// variables in the parenthesis may be reordered prior to variables preceding the expression
+// in text format. This would make the assumption that all variables retain the same ordering
+// in RPN and string format invalid.  
+
 /// 'Compiles' a `&str` expression to a function that takes a hashmap as an argument.
 /// 
 /// Under the hood, this rearranges the string expression to a token stack **once** 
@@ -280,6 +294,38 @@ pub fn compile_to_fn_of_hashmap(expr: &str, context: &ContextHashMap) -> anyhow:
         {
             *arg_hm[var].borrow_mut() = *value;
         }
+        eval_rpn_expression(&rpn)
+    })
+}
+
+pub fn compile_to_fn(expr: &str, context: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>> 
+{
+    let mut var_order = get_legal_variables_iter(expr);  
+
+    let mut var: Rc<RefCell<f64>> = Rc::new(RefCell::new(f64::MIN));
+    let rpn = rpnify(expr, context)?;
+    for token in &rpn 
+    {
+        match token
+        {
+            Token::Var(num) => {
+                var = Rc::clone(num); 
+                var_order.next();
+            },
+            Token::Num(_) => {
+                var_order.next();
+            },
+            _ => {},
+        };
+    }
+
+    if *var.borrow() == f64::MIN
+    {
+        return Err(ExpressionCompilationError::NoVarsFound.into())
+    }
+
+    Ok(move |x: f64| {
+        *var.borrow_mut() = x;
         eval_rpn_expression(&rpn)
     })
 }
