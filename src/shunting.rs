@@ -229,18 +229,6 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
     Ok(queue)
 }
 
-// TODO: Both compile functions have a sematic bug in them.
-//
-// If an expression contains more than 1 instance of the same variable (e.g. x^2 + x + 1)
-// only the last occurrence of that variable will be added to the variable hashmap or the
-// single function argument. The first Rc<RefCell<f64>> will never be mutated on calling the
-// returned function.
-//
-// Furthermore, I'm not sure that this algorithm is valid for expressions with parenthesis, as
-// variables in the parenthesis may be reordered prior to variables preceding the expression
-// in text format. This would make the assumption that all variables retain the same ordering
-// in RPN and string format invalid.  
-
 /// 'Compiles' a `&str` expression to a function that takes a hashmap as an argument.
 /// 
 /// Under the hood, this rearranges the string expression to a token stack **once** 
@@ -257,25 +245,25 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
 /// # Example
 /// ```
 /// use std::collections::HashMap;
-/// use geqslib::shunting::{
-///   compile_to_fn_of_hashmap,
-///   add_var_to_ctx,
-///   new_context,
-/// };
+/// use geqslib::shunting::{compile_to_fn_of_hashmap, add_var_to_ctx, new_context};
 /// 
-/// let my_expr = "x + 4";
+/// let my_expr = "x + 4 * y";
 ///
 /// // add variable value to context
 /// let mut my_hm = new_context();
 /// add_var_to_ctx(&mut my_hm, "x", 4);
+/// add_var_to_ctx(&mut my_hm, "y", 2);
 /// 
 /// // get a closure from the expression
 /// let my_fn = compile_to_fn_of_hashmap(my_expr, &my_hm).unwrap();
 /// 
 /// // make an input hashmap
-/// let mut my_input = HashMap::from([("x".to_string(), 8.0)]);
+/// let mut my_input = HashMap::from([
+///     ("x".to_string(), 8.0),
+///     ("y".to_string(), 0.5),
+/// ]);
 /// 
-/// assert_eq!(my_fn(&my_input).unwrap(), 12.0);
+/// assert_eq!(my_fn(&my_input).unwrap(), 10.0);
 /// ```
 pub fn compile_to_fn_of_hashmap(expr: &str, context: &ContextHashMap) -> anyhow::Result<impl Fn(&HashMap<String, f64>) -> anyhow::Result<f64>> 
 {
@@ -291,29 +279,52 @@ pub fn compile_to_fn_of_hashmap(expr: &str, context: &ContextHashMap) -> anyhow:
     let rpn = rpnify(expr, context)?;
 
     // Clone the Rc's to a lookup table for closure function
-    let arg_hm: HashMap<String, Option<Rc<RefCell<f64>>>> = context.iter()
-        .map(|x| {
-            match x 
-            {
-                (var, Token::Var(r)) => (var.to_string(), Some(Rc::clone(r))),
-                (var, _) => (var.to_string(), None),
-            }
-        })
-        .collect();
+    let arg_lookup_table = context.clone();
 
     Ok(move |x: &HashMap<String, f64>| {
         for (var, value) in x 
         {
-            match &arg_hm[var]
+            match arg_lookup_table.get(var)
             {
-                Some(r) => *r.borrow_mut() = *value,
-                None => return Err(CompiledExpressionLookupError.into()),
+                Some(Token::Var(r)) => *r.borrow_mut() = *value,
+                _ => return Err(CompiledExpressionLookupError.into()),
             }
         }
         eval_rpn_expression(&rpn)
     })
 }
 
+
+/// Similar to `compile_to_fn_of_hashmap`, but produces a function that takes only 
+/// a single argument to mutate a single variable in the `&str` expression.
+/// 
+/// Under the hood, this rearranges the string expression to a token stack **once** 
+/// prior to being moved to the returned closure value. The variables in the expression 
+/// are added to a `HashMap` that allows the function to quickly find and mutate the 
+/// values in the token stack to reduce the number of steps performed when the 
+/// closure is called. 
+/// 
+/// In order for this process to work, mutable references are made to the contents of all
+/// variable tokens in the expression. Because of this, it is on the caller to ensure that
+/// all variables and constants present in the given expression are also present in the 
+/// given `ContextHashMap` so that they are read correctly when the closure is called.  
+/// 
+/// # Example
+/// ```
+/// use std::collections::HashMap;
+/// use geqslib::shunting::{compile_to_fn, add_var_to_ctx, new_context};
+/// 
+/// let my_expr = "x + 4";
+///
+/// // add variable value to context
+/// let mut my_hm = new_context();
+/// add_var_to_ctx(&mut my_hm, "x", 4);
+/// 
+/// // get a closure from the expression
+/// let my_fn = compile_to_fn(my_expr, &my_hm).unwrap();
+/// 
+/// assert_eq!(my_fn(8.0).unwrap(), 12.0);
+/// ```
 pub fn compile_to_fn(expr: &str, context: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>> 
 {
     // Ensure that all variables in the expression exist in the context
