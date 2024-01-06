@@ -37,6 +37,7 @@ pub fn get_legal_variables_iter(text: &str) -> impl Iterator<Item = &str>
 
 const _OPERATORS_: &str = "()^*/+-";
 
+/// Returns the precedence of a binary operator for a shunting yard algorithm
 fn precedence(op: &str) -> i32 
 {
     match op 
@@ -50,6 +51,7 @@ fn precedence(op: &str) -> i32
     }
 }
 
+/// Checks operator precedences for the shunting yard algorithm.
 fn prec_check(o1: &str, o2: &str) -> bool 
 {
     let check1 = o2 != "(";
@@ -58,6 +60,8 @@ fn prec_check(o1: &str, o2: &str) -> bool
     check1 && (check2 || check3)
 }
 
+/// Adds whitespace to help delimit tokens in an expression given as 
+/// a `&str`. 
 fn punctuate(expr: &str) -> String 
 {
     let mut output = String::new();
@@ -75,6 +79,8 @@ fn punctuate(expr: &str) -> String
     output.trim().to_string()
 }
 
+/// Converts a substring to a `Token` enum for use in 
+/// a postfix evaluator algorithm.
 fn tokenize(tok: &str) -> anyhow::Result<Token> 
 {
     let token = match tok 
@@ -385,6 +391,7 @@ pub fn compile_to_fn(expr: &str, context: &ContextHashMap) -> anyhow::Result<imp
     }
 }
 
+/// Evaluates a postfix token stack, returning an f64 value on success.
 fn eval_rpn_expression(expr: &Vec<Token>) -> anyhow::Result<f64> 
 {    
     let mut stack: Vec<f64> = Vec::new();
@@ -548,6 +555,7 @@ fn test_punctuate()
     )
 }
 
+// Unit tests for private module functions:
 #[test]
 fn test_rpnify() 
 {
