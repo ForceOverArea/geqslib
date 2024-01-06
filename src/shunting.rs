@@ -8,7 +8,24 @@ use anyhow;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-/// Identifies and returns variables found in a geqslib-legal string.
+/// Identifies and returns variables found in a math expression given as a string.
+/// 
+/// 'Legal variables' follow Python's (and Rust's) definition of a legal variable.
+/// In other words, they must match the Regex pattern: `(?i)[a-z][a-z0-9_]*`
+/// 
+/// # Example
+/// ```
+/// use geqslib::shunting::get_legal_variables_iter;
+/// 
+/// let vars = Vec::from_iter(
+///     get_legal_variables_iter("x + y - snake_case_1 / CamelCase2")
+/// );
+/// 
+/// assert!(vars.contains(&"x"));
+/// assert!(vars.contains(&"y"));
+/// assert!(vars.contains(&"snake_case_1"));
+/// assert!(vars.contains(&"CamelCase2"));
+/// ```
 pub fn get_legal_variables_iter(text: &str) -> impl Iterator<Item = &str> 
 {
     lazy_static! 
@@ -99,8 +116,6 @@ fn tokenize_with_context(tok: &str, context: &ContextHashMap) -> anyhow::Result<
     }
 }
 
-pub type RPNVarMap = HashMap<String, Rc<RefCell<f64>>>;
-
 /// See shunting yard implementation details at: 
 /// https://en.wikipedia.org/wiki/Shunting_yard_algorithm
 fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>> 
@@ -116,13 +131,15 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
     {
         match word 
         {
-            
             "," => {
                 while let Some(op) = stack.pop() 
                 {
-                    if op != "(" {
+                    if op != "(" 
+                    {
                         queue.push(tokenize_with_context(op, context)?); // ditto the comment for the previous branch
-                    } else {
+                    } 
+                    else 
+                    {
                         break;
                     }
                 }
