@@ -1,6 +1,5 @@
-use std::{error::Error, collections::HashMap, iter::zip, borrow::BorrowMut};
-
-use gmatlib::{Matrix, row_vec, col_vec};
+use std::{error::Error, collections::HashMap};
+use gmatlib::Matrix;
 use crate::errors::NewtonRaphsonSolverError;
 
 const _DX_: f64 = 0.0001; 
