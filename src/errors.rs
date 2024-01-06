@@ -61,3 +61,16 @@ impl_err! {
     ExpressionCompilationError::WrongVarCount, "found number of values not equal",
     ExpressionCompilationError::VarNotFoundInContext, "found a legal variable in the expression that did not have a variable in the given context"
 }
+
+#[derive(Debug)]
+pub enum NewtonRaphsonSolverError {
+    NegativeMargin,
+    ReachedIterationLimit,
+    ImproperlyConstrainedSystem,
+}
+impl_err! {
+    NewtonRaphsonSolverError,
+    NewtonRaphsonSolverError::NegativeMargin, "given margin value must be greater than 0",
+    NewtonRaphsonSolverError::ReachedIterationLimit, "reached the maximum number of iterations without finding a solution",
+    NewtonRaphsonSolverError::ImproperlyConstrainedSystem, "number of functions given did not match the number of variables"
+}
