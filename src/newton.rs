@@ -11,6 +11,10 @@ const _DX_: f64 = 0.0001;
 /// a margin of error, and a maximum number of iterations prior to 
 /// returning a value. 
 /// 
+/// This function also guarantees that the root, if found, is
+/// within `margin` of the actual root AND that `f(guess)` is
+/// within `margin`` of `0.0`.
+/// 
 /// # Example
 /// ```
 /// use std::io::Error;
@@ -21,9 +25,9 @@ const _DX_: f64 = 0.0001;
 ///     Ok(x * x)
 /// }
 /// 
-/// let y = newton_raphson(x_squared, 1.0, 0.0001, 10).unwrap();
+/// let x = newton_raphson(x_squared, 1.0, 0.0001, 100).unwrap();
 /// 
-/// assert!(y < 0.0001); // solution is APPROXIMATE. In this case, very close to 0.
+/// assert!((x - 0.0001).abs() < 0.001); // solution is APPROXIMATE. In this case, very close to 0.
 /// ```
 pub fn newton_raphson<E>(f: impl Fn(f64) -> Result<f64, E>, guess: f64, margin: f64, limit: usize) -> anyhow::Result<f64>
 where E: Error + Send + Sync + 'static
@@ -40,21 +44,62 @@ where E: Error + Send + Sync + 'static
         return Err(NewtonRaphsonSolverError::ReachedIterationLimit.into());
     }
 
-    // Check if we are sufficiently close to the solution:
     let y = f(guess)?;
-    if y.abs() <= margin
+    let y_prime = (f(guess + _DX_)? - y) / _DX_;
+    let delta = y / y_prime;
+
+    // Check if we are sufficiently close to the solution:
+    if y.abs() <= margin && delta <= margin // ...in both the y AND x directions...
     {
         return Ok(guess); // ...if so, exit early
     }
 
     // ...if not, calculate next iteration
-    let y_prime = (f(guess + _DX_)? - y) / _DX_;
-    let next_guess = guess - y / y_prime;
+    let next_guess = guess - delta;
 
     newton_raphson(f, next_guess, margin, limit - 1)
 }
 
-
+/// A basic implementation of the Newton-Raphson method for multivariate
+/// systems. This function allows the caller to specify an initial guess 
+/// vector as a `HashMap<String, f64>`, a margin of error, and a maximum 
+/// number of iterations prior to returning a value.
+/// 
+/// This function also guarantees that the root, if found, is within `margin` 
+/// of the actual root AND that F(`guess`) is within `margin` of `0.0` where 
+/// 'F' is the "system vector" containing f1, f2, ..., fn.
+/// 
+/// # Example
+/// ```
+/// use std::io::Error;
+/// use std::collections::HashMap;
+/// use geqslib::newton::multivariate_newton_raphson;
+/// 
+/// fn f1(x: &HashMap<String, f64>) -> Result<f64, Error>
+/// {
+///     Ok(x["x"] + x["y"] - 9.0)
+/// }
+/// 
+/// fn f2(x: &HashMap<String, f64>) -> Result<f64, Error>
+/// {
+///     Ok(x["x"] - x["y"] - 4.0)
+/// }
+/// 
+/// let mut guess = HashMap::from([
+///     ("x".to_string(), 7.0),
+///     ("y".to_string(), 2.0),
+/// ]);
+/// 
+/// let soln = multivariate_newton_raphson(
+///     vec![f1, f2],
+///     &mut guess,
+///     0.0001,
+///     50,
+/// ).unwrap();
+/// 
+/// assert!(soln["x"] - 6.5 < 0.0001);
+/// assert!(soln["y"] - 2.5 < 0.0001);
+/// ```
 pub fn multivariate_newton_raphson<E>(f: Vec<impl Fn(&HashMap<String, f64>) -> Result<f64, E>>, guess: &mut HashMap<String, f64>, margin: f64, limit: usize) -> anyhow::Result<&mut HashMap<String, f64>>
 where E: Error + Send + Sync + 'static
 {
@@ -75,21 +120,6 @@ where E: Error + Send + Sync + 'static
     if guess.len() != n
     {
         return Err(NewtonRaphsonSolverError::ImproperlyConstrainedSystem.into());
-    }
-
-    // Calculate current error
-    let mut y = vec![0.0; 3];
-    for i in 0..n
-    {
-        y[i] = f[i](guess)?;
-    }
-
-    // Return guess if it is close enough to solution
-    if y.iter()
-        .map(|v| v.abs())
-        .sum::<f64>() < margin
-    {
-        return Ok(guess);
     }
 
     // Build jacobian w/ F(X) values... we will mutate them to F'(X) later
@@ -121,16 +151,37 @@ where E: Error + Send + Sync + 'static
     }
     jacobian.try_inplace_invert()?;
 
-    // Build next guess vector
-    let mut next_vals: Vec<f64> = (jacobian * Matrix::from_col_vec(y)).into();
-    for var in vars
+    // Calculate current error
+    let mut y = vec![0.0; n];
+    for i in 0..n
     {
-        if let (Some(t), Some(u)) = (guess.get_mut(&var), next_vals.pop())
+        y[i] = f[i](guess)?;
+    }
+    let error = y.iter()
+        .map(|v| v.abs())
+        .sum::<f64>();
+
+    // Calculate change vector and its magnitude
+    let deltas: Vec<f64> = (jacobian * Matrix::from_col_vec(y)).into();
+    let change = deltas.iter()
+        .map(|d| d.abs())
+        .sum::<f64>()
+        .sqrt();
+
+    if error <= margin && change <= margin
+    {
+        return Ok(guess);
+    }
+
+    // Build next guess vector
+    for i in 0..n
+    {
+        if let (Some(guess_val), Some(delta)) = (guess.get_mut(&vars[i]), deltas.get(i))
         {
-            *t = u;
+            *guess_val -= delta;
         }
     }
 
     // COMPUTER, ENHANCE!
-    multivariate_newton_raphson(f, guess, margin, limit)
+    multivariate_newton_raphson(f, guess, margin, limit - 1)
 }
