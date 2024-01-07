@@ -13,7 +13,7 @@ const _DX_: f64 = 0.0001;
 /// 
 /// This function also guarantees that the root, if found, is
 /// within `margin` of the actual root AND that `f(guess)` is
-/// within `margin`` of `0.0`.
+/// within `margin` of `0.0`.
 /// 
 /// # Example
 /// ```
@@ -66,8 +66,8 @@ where E: Error + Send + Sync + 'static
 /// number of iterations prior to returning a value.
 /// 
 /// This function also guarantees that the root, if found, is within `margin` 
-/// of the actual root AND that F(`guess`) is within `margin` of `0.0` where 
-/// 'F' is the "system vector" containing f1, f2, ..., fn.
+/// of the actual root AND that F(`guess`) has a magnitude within `margin` of 
+/// `0.0` where 'F' is the "system vector" containing f1, f2, ..., fn.
 /// 
 /// # Example
 /// ```
