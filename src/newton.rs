@@ -1,4 +1,4 @@
-use std::{error::Error, collections::HashMap};
+use std::collections::HashMap;
 use gmatlib::Matrix;
 use crate::errors::NewtonRaphsonSolverError;
 
@@ -30,7 +30,7 @@ const _DX_: f64 = 0.0001;
 /// assert!((x - 0.0001).abs() < 0.001); // solution is APPROXIMATE. In this case, very close to 0.
 /// ```
 pub fn newton_raphson<E>(f: impl Fn(f64) -> Result<f64, E>, guess: f64, margin: f64, limit: usize) -> anyhow::Result<f64>
-where E: Error + Send + Sync + 'static
+where anyhow::Error: From<E>
 {
     // Catch illegal margin of error
     if margin <= 0.0
@@ -101,7 +101,7 @@ where E: Error + Send + Sync + 'static
 /// assert!(soln["y"] - 2.5 < 0.0001);
 /// ```
 pub fn multivariate_newton_raphson<E>(f: Vec<impl Fn(&HashMap<String, f64>) -> Result<f64, E>>, guess: &mut HashMap<String, f64>, margin: f64, limit: usize) -> anyhow::Result<&mut HashMap<String, f64>>
-where E: Error + Send + Sync + 'static
+where anyhow::Error: From<E>
 {
     // Catch illegal margin of error
     if margin <= 0.0
