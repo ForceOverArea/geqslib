@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 pub type ContextHashMap = HashMap<String, Token>;
+
 #[allow(dead_code)]
 #[derive(Clone)]
 #[derive(Debug)]
@@ -82,38 +83,64 @@ fn conditional(args: &[f64]) -> f64 {
     }
 }
 
-pub fn add_func_to_ctx(ctx: &mut ContextHashMap, name: &str, func: fn(&[f64]) -> f64, num_args: usize) {
-    ctx.insert(name.to_string(), Token::Func(num_args, func));
+/// A module for sealing the `ContextLike` trait.
+pub (crate) mod private
+{
+    use super::ContextHashMap;
+    pub trait Sealed {}
+    impl Sealed for ContextHashMap {}
 }
 
-pub fn add_const_to_ctx<T>(ctx: &mut ContextHashMap, name: &str, val: T) 
-where
-    T: Into<f64>
+/// Provides extra methods for `ContextHashMap`.
+pub trait ContextLike: private::Sealed
 {
-    ctx.insert(name.to_string(), Token::Num(val.into()));
-}
+    fn add_func_to_ctx(&mut self, name: &str, func: fn(&[f64]) -> f64, num_args: usize) -> ();
 
-pub fn add_var_to_ctx<T>(ctx: &mut ContextHashMap, name: &str, val: T) 
-where
-    T: Into<f64>
+    fn add_const_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    where
+        T: Into<f64>;
+
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    where
+        T: Into<f64>;
+} 
+
+
+impl ContextLike for ContextHashMap 
 {
-    ctx.insert(name.to_string(), Token::Var(Rc::new(RefCell::new(val.into()))));
+    fn add_func_to_ctx(&mut self, name: &str, func: fn(&[f64]) -> f64, num_args: usize) {
+        self.insert(name.to_string(), Token::Func(num_args, func));
+    }
+    
+    fn add_const_to_ctx<T>(&mut self, name: &str, val: T) 
+    where
+        T: Into<f64>
+    {
+        self.insert(name.to_string(), Token::Num(val.into()));
+    }
+    
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) 
+    where
+        T: Into<f64>
+    {
+        self.insert(name.to_string(), Token::Var(Rc::new(RefCell::new(val.into()))));
+    }
 }
 
 pub fn new_context() -> ContextHashMap {
     let mut ctx = HashMap::new();
-    add_func_to_ctx(&mut ctx, "if",     conditional,  5);
-    add_func_to_ctx(&mut ctx, "sin",    sin,          1);
-    add_func_to_ctx(&mut ctx, "cos",    cos,          1);
-    add_func_to_ctx(&mut ctx, "tan",    tan,          1);
-    add_func_to_ctx(&mut ctx, "arcsin", arcsin,       1);
-    add_func_to_ctx(&mut ctx, "arccos", arccos,       1);
-    add_func_to_ctx(&mut ctx, "arctan", arctan,       1);
-    add_func_to_ctx(&mut ctx, "sinh",   sinh,         1);
-    add_func_to_ctx(&mut ctx, "cosh",   cosh,         1);
-    add_func_to_ctx(&mut ctx, "tanh",   tanh,         1);
-    add_func_to_ctx(&mut ctx, "ln",     ln,           1);
-    add_func_to_ctx(&mut ctx, "log10",  log10,        1);
-    add_func_to_ctx(&mut ctx, "log",    log,          2);
+    ctx.add_func_to_ctx("if",     conditional, 5);
+    ctx.add_func_to_ctx("sin",    sin,         1);
+    ctx.add_func_to_ctx("cos",    cos,         1);
+    ctx.add_func_to_ctx("tan",    tan,         1);
+    ctx.add_func_to_ctx("arcsin", arcsin,      1);
+    ctx.add_func_to_ctx("arccos", arccos,      1);
+    ctx.add_func_to_ctx("arctan", arctan,      1);
+    ctx.add_func_to_ctx("sinh",   sinh,        1);
+    ctx.add_func_to_ctx("cosh",   cosh,        1);
+    ctx.add_func_to_ctx("tanh",   tanh,        1);
+    ctx.add_func_to_ctx("ln",     ln,          1);
+    ctx.add_func_to_ctx("log10",  log10,       1);
+    ctx.add_func_to_ctx("log",    log,         2);
     ctx
 }
