@@ -74,3 +74,12 @@ impl_err! {
     NewtonRaphsonSolverError::ReachedIterationLimit, "reached the maximum number of iterations without finding a solution",
     NewtonRaphsonSolverError::ImproperlyConstrainedSystem, "number of functions given did not match the number of variables"
 }
+
+#[derive(Debug)]
+pub enum EquationSolverError {
+    SingleUnknownNotFound,
+}
+impl_err!{
+    EquationSolverError,
+    EquationSolverError::SingleUnknownNotFound, "found either no unknowns in given context or too many to solve a single equation"
+}
