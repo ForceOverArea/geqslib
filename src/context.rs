@@ -109,10 +109,12 @@ pub trait ContextLike: private::Sealed
 
 impl ContextLike for ContextHashMap 
 {
+    /// Adds a named function to the `ContextHashMap`. 
     fn add_func_to_ctx(&mut self, name: &str, func: fn(&[f64]) -> f64, num_args: usize) {
         self.insert(name.to_string(), Token::Func(num_args, func));
     }
     
+    /// Adds a named constant value to the `ContextHashMap`.
     fn add_const_to_ctx<T>(&mut self, name: &str, val: T) 
     where
         T: Into<f64>
@@ -120,6 +122,11 @@ impl ContextLike for ContextHashMap
         self.insert(name.to_string(), Token::Num(val.into()));
     }
     
+    /// Adds a named variable to the `ContextHashMap`. 
+    /// 
+    /// Under the hood, the 'variable' value is stored as an 
+    /// `Rc<RefCell<f64>>`. This allows other algorithms to 
+    /// manipulate the variable's value.
     fn add_var_to_ctx<T>(&mut self, name: &str, val: T) 
     where
         T: Into<f64>
