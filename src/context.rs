@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::f64::consts::PI;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -142,5 +143,6 @@ pub fn new_context() -> ContextHashMap {
     ctx.add_func_to_ctx("ln",     ln,          1);
     ctx.add_func_to_ctx("log10",  log10,       1);
     ctx.add_func_to_ctx("log",    log,         2);
+    ctx.add_const_to_ctx("pi",                PI);
     ctx
 }
