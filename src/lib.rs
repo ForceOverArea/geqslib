@@ -1,3 +1,5 @@
+/// Contains functions for checking whether systems or equations are properly constrained for solving.
+pub mod constraints;
 /// Contains structs for passing information to the shunting yard algorithm.
 pub mod context;
 /// Contains error types for different errors that this crate may throw.
@@ -12,6 +14,20 @@ use context::{ContextLike, Token};
 use errors::EquationSolverError;
 use newton::newton_raphson;
 use shunting::{ContextHashMap, compile_to_fn, get_legal_variables_iter, new_context};
+
+pub (in crate) fn compile_equation_to_function_of_hashmap(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>>
+{
+    // Ensure that we're solving just one equation
+    let sides: Vec<&str> = equation.split('=').collect();
+    match sides.len()
+    {
+        1 => return Err(EquationSolverError::FoundExpression.into()),
+        2 => (),
+        _ => return Err(EquationSolverError::FoundMultipleEquations.into()),
+    }
+    
+    compile_to_fn(&format!("{} - ({})", sides[0], sides[1]), ctx)
+}
 
 /// Solves an equation given as a string for the SINGLE
 /// `Token::Var` in `ctx`. If a different number of variables
@@ -58,16 +74,7 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
         _ => 1.0, // This branch should never be used. If it is, it will just set the initial guess to 1
     };
 
-    // Ensure that we're solving just one equation
-    let sides: Vec<&str> = equation.split('=').collect();
-    match sides.len()
-    {
-        1 => return Err(EquationSolverError::FoundExpression.into()),
-        2 => (),
-        _ => return Err(EquationSolverError::FoundMultipleEquations.into()),
-    }
-
-    let f = compile_to_fn(&format!("{} - ({})", sides[0], sides[1]), &ctx)?;
+    let f = compile_equation_to_function_of_hashmap(equation, ctx)?;
 
     Ok((unknowns[0].0.to_string(), newton_raphson(f, guess, margin, limit)?))
 }
