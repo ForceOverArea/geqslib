@@ -78,8 +78,12 @@ impl_err! {
 #[derive(Debug)]
 pub enum EquationSolverError {
     SingleUnknownNotFound,
+    FoundExpression,
+    FoundMultipleEquations,
 }
 impl_err!{
     EquationSolverError,
-    EquationSolverError::SingleUnknownNotFound, "found either no unknowns in given context or too many to solve a single equation"
+    EquationSolverError::SingleUnknownNotFound, "found either no unknowns in given context or too many to solve a single equation",
+    EquationSolverError::FoundExpression, "expected an '=' in the given equation string, found none",
+    EquationSolverError::FoundMultipleEquations, "expected only '=' in the given equation string, found multiple"
 }
