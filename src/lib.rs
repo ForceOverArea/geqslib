@@ -9,13 +9,15 @@ pub mod newton;
 /// Contains a basic shunting yard algorithm for evaluating strings as mathematical expressions.
 pub mod shunting;
 
+use std::collections::HashMap;
+
 use anyhow::Ok;
 use context::{ContextLike, Token};
 use errors::EquationSolverError;
 use newton::newton_raphson;
-use shunting::{ContextHashMap, compile_to_fn, get_legal_variables_iter, new_context};
+use shunting::{ContextHashMap, compile_to_fn, get_legal_variables_iter, new_context, compile_to_fn_of_hashmap};
 
-pub (in crate) fn compile_equation_to_function_of_hashmap(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>>
+pub (in crate) fn compile_equation_to_fn(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>>
 {
     // Ensure that we're solving just one equation
     let sides: Vec<&str> = equation.split('=').collect();
@@ -27,6 +29,20 @@ pub (in crate) fn compile_equation_to_function_of_hashmap(equation: &str, ctx: &
     }
     
     compile_to_fn(&format!("{} - ({})", sides[0], sides[1]), ctx)
+}
+
+pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>
+{
+    // Ensure that we're solving just one equation
+    let sides: Vec<&str> = equation.split('=').collect();
+    match sides.len()
+    {
+        1 => return Err(EquationSolverError::FoundExpression.into()),
+        2 => (),
+        _ => return Err(EquationSolverError::FoundMultipleEquations.into()),
+    }
+    
+    compile_to_fn_of_hashmap(&format!("{} - ({})", sides[0], sides[1]), ctx)
 }
 
 /// Solves an equation given as a string for the SINGLE
@@ -74,7 +90,7 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
         _ => 1.0, // This branch should never be used. If it is, it will just set the initial guess to 1
     };
 
-    let f = compile_equation_to_function_of_hashmap(equation, ctx)?;
+    let f = compile_equation_to_fn(equation, ctx)?;
 
     Ok((unknowns[0].0.to_string(), newton_raphson(f, guess, margin, limit)?))
 }
