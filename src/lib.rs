@@ -1,5 +1,5 @@
 /// Contains functions for checking whether systems or equations are properly constrained for solving.
-pub mod constraints;
+pub mod system;
 /// Contains structs for passing information to the shunting yard algorithm.
 pub mod context;
 /// Contains error types for different errors that this crate may throw.
@@ -15,7 +15,7 @@ use anyhow::Ok;
 use context::{ContextLike, Token};
 use errors::EquationSolverError;
 use newton::newton_raphson;
-use shunting::{ContextHashMap, compile_to_fn, get_legal_variables_iter, new_context, compile_to_fn_of_hashmap};
+use shunting::{ContextHashMap, compile_to_fn, compile_to_fn_of_hashmap, get_legal_variables_iter, new_context};
 
 pub (in crate) fn compile_equation_to_fn(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>>
 {

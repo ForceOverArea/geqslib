@@ -34,7 +34,7 @@ impl <'a> SystemBuilder<'a>
     /// 
     /// # Example
     /// ```
-    /// use geqslib::constraints::SystemBuilder;
+    /// use geqslib::system::SystemBuilder;
     /// use geqslib::context::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
@@ -44,7 +44,7 @@ impl <'a> SystemBuilder<'a>
     /// let my_sys = SystemBuilder::new("x + y = 4", &ctx)
     ///     .expect("failed to build system!");
     /// ```
-    pub fn new(equation: &'a str, ctx: &'a ContextHashMap) -> anyhow::Result<SystemBuilder<'a>>
+    pub fn new(equation: &'a str, ctx: &'a mut ContextHashMap) -> anyhow::Result<SystemBuilder<'a>>
     {
         Ok(SystemBuilder
         {
@@ -60,7 +60,7 @@ impl <'a> SystemBuilder<'a>
     /// 
     /// # Example
     /// ```
-    /// use geqslib::constraints::SystemBuilder;
+    /// use geqslib::system::SystemBuilder;
     /// use geqslib::context::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
@@ -88,7 +88,7 @@ impl <'a> SystemBuilder<'a>
     /// 
     /// # Equation
     /// ```
-    /// use geqslib::constraints::{ConstrainResult, SystemBuilder};
+    /// use geqslib::system::{ConstrainResult, SystemBuilder};
     /// use geqslib::context::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
@@ -162,7 +162,7 @@ impl <'a> SystemBuilder<'a>
     /// 
     /// # Example
     /// ```
-    /// use geqslib::constraints::{ConstrainResult, SystemBuilder};
+    /// use geqslib::system::{ConstrainResult, SystemBuilder};
     /// use geqslib::context::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
@@ -190,7 +190,7 @@ impl <'a> SystemBuilder<'a>
     /// 
     /// # Example
     /// ```
-    /// use geqslib::constraints::SystemBuilder;
+    /// use geqslib::system::SystemBuilder;
     /// 
     /// 
     /// ```
