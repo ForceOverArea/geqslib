@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::f64::consts::{PI, E};
+use std::f64::consts::{PI, E};
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -57,6 +58,9 @@ fn log10(x: &[f64]) -> f64 {
 }
 fn log(x: &[f64]) -> f64 {
     x[0].log(x[1])
+}
+fn abs(x: &[f64]) -> f64 {
+    x[0].abs()
 }
 fn abs(x: &[f64]) -> f64 {
     x[0].abs()
@@ -142,21 +146,28 @@ pub fn new_context() -> ContextHashMap {
     let mut ctx = HashMap::new();
     ctx.add_func_to_ctx("if",     conditional, 5);
     
+    
     ctx.add_func_to_ctx("sin",    sin,         1);
     ctx.add_func_to_ctx("cos",    cos,         1);
     ctx.add_func_to_ctx("tan",    tan,         1);
+    
     
     ctx.add_func_to_ctx("arcsin", arcsin,      1);
     ctx.add_func_to_ctx("arccos", arccos,      1);
     ctx.add_func_to_ctx("arctan", arctan,      1);
     
+    
     ctx.add_func_to_ctx("sinh",   sinh,        1);
     ctx.add_func_to_ctx("cosh",   cosh,        1);
     ctx.add_func_to_ctx("tanh",   tanh,        1);
     
+    
     ctx.add_func_to_ctx("ln",     ln,          1);
     ctx.add_func_to_ctx("log10",  log10,       1);
     ctx.add_func_to_ctx("log",    log,         2);
+    
+    ctx.add_func_to_ctx("abs",    abs,         1);
+    
     
     ctx.add_func_to_ctx("abs",    abs,         1);
     
