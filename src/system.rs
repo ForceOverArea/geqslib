@@ -41,7 +41,7 @@ impl <'a> SystemBuilder<'a>
     /// ctx.add_var_to_ctx("x", 2.0);
     /// ctx.add_var_to_ctx("y", 2.0);
     /// 
-    /// let my_sys = SystemBuilder::new("x + y = 4", &ctx)
+    /// let my_sys = SystemBuilder::new("x + y = 4", &mut ctx)
     ///     .expect("failed to build system!");
     /// ```
     pub fn new(equation: &'a str, ctx: &'a mut ContextHashMap) -> anyhow::Result<SystemBuilder<'a>>
@@ -67,7 +67,7 @@ impl <'a> SystemBuilder<'a>
     /// ctx.add_var_to_ctx("x", 2.0);
     /// ctx.add_var_to_ctx("y", 2.0);
     /// 
-    /// let my_sys = SystemBuilder::new("x + y = 4", &ctx)
+    /// let my_sys = SystemBuilder::new("x + y = 4", &mut ctx)
     ///     .expect("failed to build system!");
     /// 
     /// assert_eq!(2, my_sys.get_vars().len());
@@ -97,7 +97,7 @@ impl <'a> SystemBuilder<'a>
     /// ctx.add_var_to_ctx("i", 1.0);
     /// ctx.add_var_to_ctx("j", 1.0);
     /// 
-    /// let mut my_sys = SystemBuilder::new("x + y = 9", &ctx)
+    /// let mut my_sys = SystemBuilder::new("x + y = 9", &mut ctx)
     ///     .expect("failed to build system!");
     /// 
     /// // Too many unknowns to be useful to system.
@@ -169,7 +169,7 @@ impl <'a> SystemBuilder<'a>
     /// ctx.add_var_to_ctx("x", 1.0);
     /// ctx.add_var_to_ctx("y", 1.0);
     /// 
-    /// let mut my_sys = SystemBuilder::new("x + y = 9", &ctx).unwrap();
+    /// let mut my_sys = SystemBuilder::new("x + y = 9", &mut ctx).unwrap();
     /// 
     /// assert!(!my_sys.is_fully_constrained());
     /// 
@@ -190,9 +190,20 @@ impl <'a> SystemBuilder<'a>
     /// 
     /// # Example
     /// ```
-    /// use geqslib::system::SystemBuilder;
+    /// use geqslib::system::{ConstrainResult, SystemBuilder};
+    /// use geqslib::context::{ContextHashMap, ContextLike};
     /// 
+    /// let mut ctx = ContextHashMap::new();
+    /// ctx.add_var_to_ctx("x", 1.0);
+    /// ctx.add_var_to_ctx("y", 1.0);
+    /// ctx.add_var_to_ctx("z", 1.0);
     /// 
+    /// let mut my_sys = SystemBuilder::new("x + y + z = 9", &mut ctx).unwrap();
+    /// 
+    /// my_sys.try_fully_constrain_with(vec![
+    ///     "(4 * x) + (5 * y) + (6 * z) = 7", 
+    ///     "(8 * x) + (9 * y) - (10 * z) = 11"])
+    ///     .expect("failed to constrain system!");
     /// ```
     pub fn try_fully_constrain_with(&mut self, equations: Vec<&'a str>) -> anyhow::Result<bool>
     {
@@ -221,6 +232,24 @@ impl <'a> SystemBuilder<'a>
     }
 }
 
+/// Returns an iterator with the unknown variables in a given equation or expression. 
+/// Note that the variables must exist in the given context in order to ensure that
+/// they are variables and not constants or functions.
+/// 
+/// # Example
+/// ```
+/// use geqslib::system::get_equation_unknowns;
+/// use geqslib::context::{ContextHashMap, ContextLike};
+/// 
+/// let mut ctx = ContextHashMap::new();
+/// ctx.add_var_to_ctx("x", 6.5);
+/// 
+/// for unknown in get_equation_unknowns("x + y = 9", &ctx)
+/// {
+///     assert_ne!(unknown, "y"); // doesn't appear because it is not in ctx
+///     assert_eq!(unknown, "x"); // the only variable in our equation specified in ctx
+/// }
+/// ```
 pub fn get_equation_unknowns<'a>(equation: &'a str, ctx: &'a ContextHashMap) -> impl Iterator<Item = &'a str>
 {
     get_legal_variables_iter(equation)
