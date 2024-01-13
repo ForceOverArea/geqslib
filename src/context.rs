@@ -1,12 +1,10 @@
 use std::collections::HashMap;
 use std::f64::consts::{PI, E};
-use std::f64::consts::{PI, E};
 use std::rc::Rc;
 use std::cell::RefCell;
 
 pub type ContextHashMap = HashMap<String, Token>;
 
-#[allow(dead_code)]
 #[derive(Clone)]
 #[derive(Debug)]
 #[derive(PartialEq)]
@@ -58,9 +56,6 @@ fn log10(x: &[f64]) -> f64 {
 }
 fn log(x: &[f64]) -> f64 {
     x[0].log(x[1])
-}
-fn abs(x: &[f64]) -> f64 {
-    x[0].abs()
 }
 fn abs(x: &[f64]) -> f64 {
     x[0].abs()
