@@ -3,6 +3,9 @@ use std::f64::consts::{PI, E};
 use std::rc::Rc;
 use std::cell::RefCell;
 
+/// A specific kind of `HashMap` that allows functions in geqslib
+/// to understand function, variable, and constant values in string-formatted
+/// expressions and equations.
 pub type ContextHashMap = HashMap<String, Token>;
 
 #[derive(Clone)]
@@ -108,7 +111,7 @@ pub trait ContextLike: private::Sealed
         T: Into<f64>;
 } 
 
-
+/// Provides extra methods for the `ContextHashMap` type.
 impl ContextLike for ContextHashMap 
 {
     /// Adds a named function to the `ContextHashMap`. 
@@ -137,32 +140,40 @@ impl ContextLike for ContextHashMap
     }
 }
 
+/// Initializes a new `ContextHashMap` with basic trig, log, conditional, and absolute value
+/// functions as well as pre-defined constants for pi and Euler's number.
+/// 
+/// # Example
+/// ```
+/// use geqslib::context::{new_context, Token};
+/// use std::f64::consts::PI;
+/// 
+/// let ctx = new_context();
+/// 
+/// if let Token::Num(x) = ctx["pi"]
+/// {
+///     assert_eq!(PI, x);
+/// }
+/// ```
 pub fn new_context() -> ContextHashMap {
     let mut ctx = HashMap::new();
     ctx.add_func_to_ctx("if",     conditional, 5);
-    
     
     ctx.add_func_to_ctx("sin",    sin,         1);
     ctx.add_func_to_ctx("cos",    cos,         1);
     ctx.add_func_to_ctx("tan",    tan,         1);
     
-    
     ctx.add_func_to_ctx("arcsin", arcsin,      1);
     ctx.add_func_to_ctx("arccos", arccos,      1);
     ctx.add_func_to_ctx("arctan", arctan,      1);
-    
     
     ctx.add_func_to_ctx("sinh",   sinh,        1);
     ctx.add_func_to_ctx("cosh",   cosh,        1);
     ctx.add_func_to_ctx("tanh",   tanh,        1);
     
-    
     ctx.add_func_to_ctx("ln",     ln,          1);
     ctx.add_func_to_ctx("log10",  log10,       1);
     ctx.add_func_to_ctx("log",    log,         2);
-    
-    ctx.add_func_to_ctx("abs",    abs,         1);
-    
     
     ctx.add_func_to_ctx("abs",    abs,         1);
     
