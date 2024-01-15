@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::shunting::{get_legal_variables_iter, ContextHashMap, Token};
+use crate::shunting::{get_legal_variables_iter, ContextHashMap};
 use crate::compile_equation_to_fn_of_hashmap;
 
 /// An enum for indicating why an equation could or could not be added
@@ -24,8 +24,8 @@ pub enum ConstrainResult
 /// fully constrained prior to attempting to solve it.
 pub struct SystemBuilder<'a>
 {
-    context: &'a ContextHashMap,
-    system_vars: Vec<&'a str>,
+    context: &'a mut ContextHashMap,
+    system_vars: Vec<String>,
     system_equations: Vec<Box<dyn Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>>,
 }
 impl <'a> SystemBuilder<'a>
@@ -35,24 +35,26 @@ impl <'a> SystemBuilder<'a>
     /// # Example
     /// ```
     /// use geqslib::system::SystemBuilder;
-    /// use geqslib::context::{ContextHashMap, ContextLike};
+    /// use geqslib::context::new_context;
     /// 
-    /// let mut ctx = ContextHashMap::new();
-    /// ctx.add_var_to_ctx("x", 2.0);
-    /// ctx.add_var_to_ctx("y", 2.0);
+    /// let mut ctx = new_context();
     /// 
     /// let my_sys = SystemBuilder::new("x + y = 4", &mut ctx)
     ///     .expect("failed to build system!");
     /// ```
     pub fn new(equation: &'a str, ctx: &'a mut ContextHashMap) -> anyhow::Result<SystemBuilder<'a>>
     {
+        let system_vars = get_equation_unknowns(equation, ctx)
+            .map(|x| x.to_owned())
+            .collect();
+
+        let starting_eqn = Box::new(compile_equation_to_fn_of_hashmap(equation, ctx)?);
+
         Ok(SystemBuilder
         {
             context: ctx,
-            system_vars: get_equation_unknowns(equation, ctx).collect(),
-            system_equations: vec![
-                Box::new(compile_equation_to_fn_of_hashmap(equation, ctx)?)
-            ],
+            system_vars,
+            system_equations: vec![starting_eqn],
         })
     }
 
@@ -61,20 +63,18 @@ impl <'a> SystemBuilder<'a>
     /// # Example
     /// ```
     /// use geqslib::system::SystemBuilder;
-    /// use geqslib::context::{ContextHashMap, ContextLike};
+    /// use geqslib::context::new_context;
     /// 
-    /// let mut ctx = ContextHashMap::new();
-    /// ctx.add_var_to_ctx("x", 2.0);
-    /// ctx.add_var_to_ctx("y", 2.0);
+    /// let mut ctx = new_context();
     /// 
     /// let my_sys = SystemBuilder::new("x + y = 4", &mut ctx)
     ///     .expect("failed to build system!");
     /// 
     /// assert_eq!(2, my_sys.get_vars().len());
-    /// assert!(my_sys.get_vars().contains(&"x"));
-    /// assert!(my_sys.get_vars().contains(&"y"));
+    /// assert!(my_sys.get_vars().contains(&"x".to_owned()));
+    /// assert!(my_sys.get_vars().contains(&"y".to_owned()));
     /// ```
-    pub fn get_vars(&self) -> &Vec<&'a str>
+    pub fn get_vars(&self) -> &Vec<String>
     {
         &self.system_vars
     }
@@ -92,10 +92,6 @@ impl <'a> SystemBuilder<'a>
     /// use geqslib::context::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
-    /// ctx.add_var_to_ctx("x", 1.0);
-    /// ctx.add_var_to_ctx("y", 1.0);
-    /// ctx.add_var_to_ctx("i", 1.0);
-    /// ctx.add_var_to_ctx("j", 1.0);
     /// 
     /// let mut my_sys = SystemBuilder::new("x + y = 9", &mut ctx)
     ///     .expect("failed to build system!");
@@ -121,8 +117,12 @@ impl <'a> SystemBuilder<'a>
         let sys_equations = self.system_equations.len();
         let sys_unknowns = self.system_vars.len();
 
-        for unknown in get_equation_unknowns(equation, self.context)
-            .filter(|x| !self.system_vars.contains(&x))
+        let unknowns: Vec<String> = get_equation_unknowns(equation, self.context)
+            .filter(|&x| !self.system_vars.contains(&x.to_owned()))
+            .map(|x| x.to_owned())
+            .collect();
+
+        for unknown in unknowns
         {
             num_unknowns += 1;
             maybe_new_var = Some(unknown);
@@ -143,7 +143,7 @@ impl <'a> SystemBuilder<'a>
 
         // Add the equation to the system
         self.system_equations.push(
-            Box::new(compile_equation_to_fn_of_hashmap(equation, self.context)?)
+            Box::new(compile_equation_to_fn_of_hashmap(equation, &mut self.context)?)
         );
 
         // Add possible newly-found variable to the system
@@ -166,8 +166,6 @@ impl <'a> SystemBuilder<'a>
     /// use geqslib::context::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
-    /// ctx.add_var_to_ctx("x", 1.0);
-    /// ctx.add_var_to_ctx("y", 1.0);
     /// 
     /// let mut my_sys = SystemBuilder::new("x + y = 9", &mut ctx).unwrap();
     /// 
@@ -230,6 +228,16 @@ impl <'a> SystemBuilder<'a>
         }
         Ok(self.is_fully_constrained())
     }
+
+    pub fn get_system(self) -> Option<Vec<Box<dyn Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>>>
+    {
+        if self.is_fully_constrained()
+        {
+            return Some(self.system_equations);
+        }
+        
+        None
+    }
 }
 
 /// Returns an iterator with the unknown variables in a given equation or expression. 
@@ -242,22 +250,14 @@ impl <'a> SystemBuilder<'a>
 /// use geqslib::context::{ContextHashMap, ContextLike};
 /// 
 /// let mut ctx = ContextHashMap::new();
-/// ctx.add_var_to_ctx("x", 6.5);
 /// 
-/// for unknown in get_equation_unknowns("x + y = 9", &ctx)
+/// for unknown in get_equation_unknowns("x + j = 9", &ctx)
 /// {
+///     assert!(unknown == "x" || unknown == "j"); // the only variable in our equation specified in ctx
 ///     assert_ne!(unknown, "y"); // doesn't appear because it is not in ctx
-///     assert_eq!(unknown, "x"); // the only variable in our equation specified in ctx
 /// }
 /// ```
 pub fn get_equation_unknowns<'a>(equation: &'a str, ctx: &'a ContextHashMap) -> impl Iterator<Item = &'a str>
 {
-    get_legal_variables_iter(equation)
-        .filter(|&x| {
-            match ctx.get(x) 
-            {
-                Some(Token::Var(_)) => true,
-                _ => false,
-            }
-        })
+    get_legal_variables_iter(equation).filter(|&x| !ctx.contains_key(x))
 }

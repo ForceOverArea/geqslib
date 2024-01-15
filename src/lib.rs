@@ -11,11 +11,11 @@ pub mod shunting;
 
 use std::collections::HashMap;
 
-use anyhow::Ok;
-use context::{ContextLike, Token};
+use context::ContextLike;
 use errors::EquationSolverError;
 use newton::newton_raphson;
 use shunting::{ContextHashMap, compile_to_fn, compile_to_fn_of_hashmap, get_legal_variables_iter, new_context};
+use system::get_equation_unknowns;
 
 pub (in crate) fn compile_equation_to_fn(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>>
 {
@@ -31,7 +31,7 @@ pub (in crate) fn compile_equation_to_fn(equation: &str, ctx: &ContextHashMap) -
     compile_to_fn(&format!("{} - ({})", sides[0], sides[1]), ctx)
 }
 
-pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>
+pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &mut ContextHashMap) -> anyhow::Result<impl Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>
 {
     // Ensure that we're solving just one equation
     let sides: Vec<&str> = equation.split('=').collect();
@@ -41,7 +41,18 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &Contex
         2 => (),
         _ => return Err(EquationSolverError::FoundMultipleEquations.into()),
     }
-    
+
+    // Get the unknowns. Need to be owned to mutate ctx
+    let unknowns: Vec<String> = get_equation_unknowns(equation, ctx)
+        .map(|x| x.to_owned())
+        .collect();
+
+    // Add a default guess value of 1 for all unspecified vars
+    for var in unknowns
+    {
+        ctx.add_var_to_ctx(&var, 1.0);
+    }
+
     compile_to_fn_of_hashmap(&format!("{} - ({})", sides[0], sides[1]), ctx)
 }
 
@@ -55,12 +66,12 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &Contex
 /// # Example
 /// ```
 /// use geqslib::solve_equation_with_context;
-/// use geqslib::context::{ContextHashMap, ContextLike};
+/// use geqslib::context::new_context;
 /// 
-/// let mut ctx = ContextHashMap::new();
-/// ctx.add_var_to_ctx("x", 7.0);
+/// let mut ctx = new_context();
 /// 
-/// let (var, soln) = solve_equation_with_context("x + 4 = 12", &mut ctx, 0.0001, 10).unwrap();
+/// let (var, soln) = solve_equation_with_context("x + 4 = 12", &mut ctx, 0.0001, 10)
+///     .expect("failed to find a solution");
 /// 
 /// assert_eq!(var, "x");
 /// assert!((soln - 8.0).abs() < 0.001);
@@ -68,14 +79,8 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &Contex
 pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, margin: f64, limit: usize) -> anyhow::Result<(String, f64)>
 {
     // Check constraints
-    let unknowns: Vec<(&String, &Token)> = ctx.iter()
-        .filter(|x| {
-            match x
-            {
-                (_, Token::Var(_)) => true, 
-                _ => false, 
-            }
-        })
+    let unknowns: Vec<&str> = get_legal_variables_iter(equation)
+        .filter(|&x| !ctx.contains_key(x))
         .collect();
 
     // Exit early if equation is improperly constrained
@@ -84,21 +89,16 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
         return Err(EquationSolverError::SingleUnknownNotFound.into());
     }
     
-    let guess = match unknowns[0].1
-    {
-        Token::Var(r) => *r.borrow(),
-        _ => 1.0, // This branch should never be used. If it is, it will just set the initial guess to 1
-    };
-
+    ctx.add_var_to_ctx(unknowns[0], 1.0);
     let f = compile_equation_to_fn(equation, ctx)?;
 
-    Ok((unknowns[0].0.to_string(), newton_raphson(f, guess, margin, limit)?))
+    Ok((unknowns[0].to_owned(), newton_raphson(f, 1.0, margin, limit)?))
 }
 
 /// Solves an equation given as a string for a SINGLE unknown variable.
 /// This function infers the unknown variable from the given expression, 
-/// meaning that it cannot contain more than 1 unknown variable and no
-/// constants or unknown function names.
+/// using a new default `ContextHashMap` to account for common constants
+/// and functions.
 /// 
 /// Intial guess values are set to 1.0f64 for the unknown variable if it 
 /// can be inferred from the equation.
@@ -114,16 +114,63 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
 /// ```
 pub fn solve_equation_from_str(equation: &str, margin: f64, limit: usize) -> anyhow::Result<(String, f64)>
 {
-    let mut ctx = new_context();
-    let unknowns: Vec<&str> = get_legal_variables_iter(equation)
-        .filter(|&x| !ctx.contains_key(x))
-        .collect();
-
-    if unknowns.len() != 1
-    {
-        return Err(EquationSolverError::SingleUnknownNotFound.into())
-    }
-
-    ctx.add_var_to_ctx(unknowns[0], 1.0);
+    let mut ctx = new_context(); // TODO find a way to fix alloc'ing another ctx
     solve_equation_with_context(equation, &mut ctx, margin, limit)
 }
+
+// /// An enum for indicating whether progress was made and what kind of progress was made
+// /// on solving a system of equations.
+// #[derive(Clone, Copy, Debug, PartialEq)]
+// enum SolverStatus
+// {
+//     SolvedSingleUnknown,
+//     SolvedMultivariate,
+//     NoneSolved
+// }
+
+// pub fn solve_system_from_str(system: &str, margin: f64, limit: usize) -> anyhow::Result<HashMap<String, f64>>
+// {
+//     let mut lines: Vec<&str> = system.split('\n').collect();
+//     let mut ctx = new_context();
+//     let mut status = SolverStatus::NoneSolved;
+//     let mut still_learning = true;
+
+//     for var in get_legal_variables_iter(system)
+//     {
+//         ctx.add_var_to_ctx(var, 1.0); // add initial guesses for all vars
+//     }
+
+//     loop 
+//     {
+//         if still_learning
+//         {
+//             still_learning = false;
+//             for line in lines
+//             {
+//                 match solve_equation_with_context(line, &mut ctx, margin, limit)
+//                 {
+//                     Ok((var, val)) => {
+//                         ctx.add_var_to_ctx(&var, val);
+//                     },
+//                     Err(e) => {
+//                         if let Ok(EquationSolverError::SingleUnknownNotFound) = e.downcast()
+//                         {
+//                             continue;
+//                         }
+
+//                         return Err(e);
+//                     }
+//                 }
+//             }
+//         }
+//         else
+//         {
+//             /*
+//              * Code to solve multivariate problems goes here
+//              */
+//             continue;
+//         }
+//         break;
+//     }
+
+// }

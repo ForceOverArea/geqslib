@@ -76,7 +76,7 @@ fn punctuate(expr: &str) -> String
             output.push(c);
         }
     }
-    output.trim().to_string()
+    output.trim().to_owned()
 }
 
 /// Converts a substring to a `Token` enum for use in 

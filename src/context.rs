@@ -116,7 +116,7 @@ impl ContextLike for ContextHashMap
 {
     /// Adds a named function to the `ContextHashMap`. 
     fn add_func_to_ctx(&mut self, name: &str, func: fn(&[f64]) -> f64, num_args: usize) {
-        self.insert(name.to_string(), Token::Func(num_args, func));
+        self.insert(name.to_owned(), Token::Func(num_args, func));
     }
     
     /// Adds a named constant value to the `ContextHashMap`.
@@ -124,7 +124,7 @@ impl ContextLike for ContextHashMap
     where
         T: Into<f64>
     {
-        self.insert(name.to_string(), Token::Num(val.into()));
+        self.insert(name.to_owned(), Token::Num(val.into()));
     }
     
     /// Adds a named variable to the `ContextHashMap`. 
@@ -136,7 +136,7 @@ impl ContextLike for ContextHashMap
     where
         T: Into<f64>
     {
-        self.insert(name.to_string(), Token::Var(Rc::new(RefCell::new(val.into()))));
+        self.insert(name.to_owned(), Token::Var(Rc::new(RefCell::new(val.into()))));
     }
 }
 
