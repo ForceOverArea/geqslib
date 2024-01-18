@@ -3,6 +3,8 @@ use std::f64::consts::{PI, E};
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use crate::variable::Variable;
+
 /// A specific kind of `HashMap` that allows functions in geqslib
 /// to understand function, variable, and constant values in string-formatted
 /// expressions and equations.
@@ -20,7 +22,7 @@ pub enum Token {
     Plus,
     Minus,
     Num(f64),
-    Var(Rc<RefCell<f64>>),
+    Var(Rc<RefCell<Variable>>),
     Func(usize, fn(&[f64]) -> f64),  
 }
 
@@ -106,7 +108,7 @@ pub trait ContextLike: private::Sealed
     where
         T: Into<f64>;
 
-    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T) -> ()
     where
         T: Into<f64>;
 } 
@@ -132,11 +134,11 @@ impl ContextLike for ContextHashMap
     /// Under the hood, the 'variable' value is stored as an 
     /// `Rc<RefCell<f64>>`. This allows other algorithms to 
     /// manipulate the variable's value.
-    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) 
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T) 
     where
         T: Into<f64>
     {
-        self.insert(name.to_owned(), Token::Var(Rc::new(RefCell::new(val.into()))));
+        self.insert(name.to_owned(), Token::Var(Rc::new(RefCell::new(Variable::new(val, min, max)))));
     }
 }
 

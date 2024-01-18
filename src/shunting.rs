@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::errors::{ShuntingYardError, ExpressionCompilationError, CompiledExpressionLookupError};
+use crate::{errors::{ShuntingYardError, ExpressionCompilationError, CompiledExpressionLookupError}, variable::Variable};
 pub use crate::context::*;
 use anyhow;
 
@@ -310,7 +310,7 @@ pub fn compile_to_fn_of_hashmap(expr: &str, context: &ContextHashMap) -> anyhow:
         {
             match arg_lookup_table.get(var)
             {
-                Some(Token::Var(r)) => *r.borrow_mut() = *value,
+                Some(Token::Var(r)) => (*r.borrow_mut()).set(*value),
                 _ => return Err(CompiledExpressionLookupError.into()),
             }
         }
@@ -379,11 +379,11 @@ pub fn compile_to_fn(expr: &str, context: &ContextHashMap) -> anyhow::Result<imp
     // Get variable's reference from context and set up closure to mutate it on call
     if let Token::Var(r) = present_vars.first().unwrap().1
     {
-        let var: Rc<RefCell<f64>> = Rc::clone(r);
+        let var: Rc<RefCell<Variable>> = Rc::clone(r);
         let rpn = rpnify(expr, context)?;
     
         Ok(move |x: f64| {
-            *var.borrow_mut() = x;
+            (*var.borrow_mut()).set(x);
             eval_rpn_expression(&rpn)
         })
     }
@@ -405,7 +405,7 @@ fn eval_rpn_expression(expr: &Vec<Token>) -> anyhow::Result<f64>
 
             Token::Num(num) => stack.push(*num),
             
-            Token::Var(val) => stack.push(*val.borrow()),
+            Token::Var(val) => stack.push((*val.borrow()).into()),
 
             Token::Func(args, func) => {
 

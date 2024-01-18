@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::shunting::{get_legal_variables_iter, ContextHashMap};
+use crate::shunting::{get_legal_variables_iter, ContextHashMap, Token};
 use crate::compile_equation_to_fn_of_hashmap;
 
 /// An enum for indicating why an equation could or could not be added
@@ -133,8 +133,7 @@ impl <'a> SystemBuilder<'a>
             // Return early if adding the equation will not gainfully constrain the system
             return Ok(ConstrainResult::WillNotConstrain);
         }
-        else if (sys_equations + 1) > (sys_unknowns + 1) 
-        || self.is_fully_constrained()
+        else if (sys_equations + 1) > (sys_unknowns + 1) || self.is_fully_constrained()
         {
             // Return early if the system will be over-constrained or 
             // no longer fully constrained.
@@ -229,14 +228,61 @@ impl <'a> SystemBuilder<'a>
         Ok(self.is_fully_constrained())
     }
 
-    pub fn get_system(self) -> Option<Vec<Box<dyn Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>>>
+    pub fn get_system(self) -> Option<System<'a>>
     {
         if self.is_fully_constrained()
         {
-            return Some(self.system_equations);
+            return Some(System {
+                context: self.context,
+                system_vars: self.system_vars,
+                system_equations: self.system_equations,
+            });
         }
         
         None
+    }
+}
+
+pub struct System<'a>
+{
+    context: &'a mut ContextHashMap,
+    system_vars: Vec<String>,
+    system_equations: Vec<Box<dyn Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>>,
+}
+impl <'a> System<'a>
+{
+    /// traps the value of the given variable between `min` and `max`.
+    /// 
+    /// # Example
+    /// ```
+    /// use geqslib::system::{System, SystemBuilder};
+    /// 
+    /// let mut builder = SystemBuilder::new("x + y = 9");
+    /// builder.try_constrain_with("x - y = 4");
+    /// 
+    /// let mut sys = builder
+    ///     .get_system()
+    ///     .unwrap();
+    /// 
+    /// sys.specify_domain
+    /// ```
+    pub fn specify_domain(&mut self, var: &str, min: f64, max: f64) -> bool
+    {
+        if !self.system_vars.contains(&var.into())
+        {
+            return false;
+        }
+
+        match self.context[var]
+        {
+            Token::Var(value) => {
+                (*value.borrow_mut()).min = min;
+                (*value.borrow_mut()).max = max;
+            },
+            _ => return false,
+        };
+
+        true
     }
 }
 
