@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ptr::copy_nonoverlapping;
 use crate::newton::multivariate_newton_raphson;
 use crate::shunting::{get_legal_variables_iter, ContextHashMap, Token};
 use crate::compile_equation_to_fn_of_hashmap;
@@ -26,13 +27,13 @@ type BoxedFnOfHashMapToResultF64 = Box<dyn Fn(&HashMap<String, f64>) -> anyhow::
 
 /// An object for building up a system of equations and ensuring that it is 
 /// fully constrained prior to attempting to solve it.
-pub struct SystemBuilder<'a>
+pub struct SystemBuilder
 {
-    context: &'a mut ContextHashMap,
+    context: ContextHashMap,
     system_vars: Vec<String>,
     system_equations: Vec<BoxedFnOfHashMapToResultF64>,
 }
-impl <'a> SystemBuilder<'a>
+impl SystemBuilder
 {
     /// Constructs a new `SystemBuilder` instance.
     /// 
@@ -46,13 +47,13 @@ impl <'a> SystemBuilder<'a>
     /// let my_sys = SystemBuilder::new("x + y = 4", &mut ctx)
     ///     .expect("failed to build system!");
     /// ```
-    pub fn new(equation: &'a str, ctx: &'a mut ContextHashMap) -> anyhow::Result<SystemBuilder<'a>>
+    pub fn new(equation: &str, mut ctx: ContextHashMap) -> anyhow::Result<SystemBuilder>
     {
-        let system_vars = get_equation_unknowns(equation, ctx)
+        let system_vars = get_equation_unknowns(equation, &ctx)
             .map(|x| x.to_owned())
             .collect();
 
-        let starting_eqn = Box::new(compile_equation_to_fn_of_hashmap(equation, ctx)?);
+        let starting_eqn = Box::new(compile_equation_to_fn_of_hashmap(equation, &mut ctx)?);
 
         Ok(SystemBuilder
         {
@@ -60,6 +61,21 @@ impl <'a> SystemBuilder<'a>
             system_vars,
             system_equations: vec![starting_eqn],
         })
+    }
+
+    /// Creates an owned `SystemBuilder` object from a `*const` to one.
+    pub (in crate) unsafe fn from_raw_pointer(p_builder: *const SystemBuilder) -> SystemBuilder
+    {
+        let mut builder = SystemBuilder 
+        {  
+            context: ContextHashMap::new(),
+            system_vars: vec![],
+            system_equations: vec![],
+        };
+
+        unsafe { copy_nonoverlapping(p_builder, &mut builder, 1) };
+
+        builder
     }
 
     /// Gives a reference to the unknown variables in the system.
@@ -114,14 +130,14 @@ impl <'a> SystemBuilder<'a>
     /// let res = my_sys.try_constrain_with("x - y = 4").unwrap();
     /// assert_eq!(res, ConstrainResult::WillOverConstrain);
     /// ```
-    pub fn try_constrain_with(&mut self, equation: &'a str) -> anyhow::Result<ConstrainResult> 
+    pub fn try_constrain_with(&mut self, equation: &str) -> anyhow::Result<ConstrainResult> 
     {
         let mut num_unknowns = 0;
         let mut maybe_new_var = None;
         let sys_equations = self.system_equations.len();
         let sys_unknowns = self.system_vars.len();
 
-        let unknowns: Vec<String> = get_equation_unknowns(equation, self.context)
+        let unknowns: Vec<String> = get_equation_unknowns(equation, &self.context)
             .filter(|&x| !self.system_vars.contains(&x.to_owned()))
             .map(|x| x.to_owned())
             .collect();
@@ -146,7 +162,7 @@ impl <'a> SystemBuilder<'a>
 
         // Add the equation to the system
         self.system_equations.push(
-            Box::new(compile_equation_to_fn_of_hashmap(equation, self.context)?)
+            Box::new(compile_equation_to_fn_of_hashmap(equation, &mut self.context)?)
         );
 
         // Add possible newly-found variable to the system
@@ -206,7 +222,7 @@ impl <'a> SystemBuilder<'a>
     ///     "(8 * x) + (9 * y) - (10 * z) = 11"])
     ///     .expect("failed to constrain system!");
     /// ```
-    pub fn try_fully_constrain_with(&mut self, equations: Vec<&'a str>) -> anyhow::Result<bool>
+    pub fn try_fully_constrain_with(&mut self, equations: Vec<&str>) -> anyhow::Result<bool>
     {
         let mut still_learning = true;
         while still_learning && !self.is_fully_constrained()
@@ -234,7 +250,7 @@ impl <'a> SystemBuilder<'a>
 
     /// Consumes `self` in order to produce a `System` object, representing 
     /// a constrained system of equations.
-    pub fn get_system(self) -> Option<System<'a>>
+    pub fn build_system(self) -> Option<System>
     {
         if self.is_fully_constrained()
         {
@@ -253,15 +269,39 @@ impl <'a> SystemBuilder<'a>
 /// variables or just be solved after construction.
 /// 
 /// This object can only be built using a `SystemBuilder` object.
-pub struct System<'a>
+pub struct System
 {
-    context: &'a mut ContextHashMap,
+    context: ContextHashMap,
     system_vars: Vec<String>,
     system_equations: Vec<BoxedFnOfHashMapToResultF64>,
 }
-impl <'a> System<'a>
+impl System
 {
-    /// Traps the value of the given variable between `min` and `max`.
+    /// Creates an owned `SystemBuilder` object from a `*const` to one.
+    pub (in crate) unsafe fn from_raw_pointer(p_system: *const System) -> System
+    {
+        let mut system = System
+        {  
+            context: ContextHashMap::new(),
+            system_vars: vec![],
+            system_equations: vec![],
+        };
+
+        unsafe { copy_nonoverlapping(p_system, &mut system, 1) };
+
+        system
+    }
+
+    /// Traps the value of the given variable between `min` and 
+    /// `max` and sets an initial guess value for it.
+    /// 
+    /// All of these values are already initialized in the 
+    /// `System`, and this method merely changes their value. 
+    /// By default, these values are:
+    /// 
+    /// - `guess`: `1.0f64` 
+    /// - `min`: `f64::NEG_INFINITY`
+    /// - `max`: `f64::INFINITY`
     /// 
     /// # Example
     /// ```
@@ -278,9 +318,9 @@ impl <'a> System<'a>
     ///     .get_system()
     ///     .unwrap();
     /// 
-    /// sys.specify_domain("x", 0.0, 7.0);
+    /// sys.specify_domain("x", 6.5, 0.0, 7.0);
     /// ```
-    pub fn specify_domain(&mut self, var: &str, min: f64, max: f64) -> bool
+    pub fn specify_variable(&mut self, var: &str, guess: f64, min: f64, max: f64) -> bool
     {
         if !self.system_vars.contains(&var.into())
         {
@@ -292,43 +332,7 @@ impl <'a> System<'a>
             Token::Var(value) => {
                 (value.borrow_mut()).min = min;
                 (value.borrow_mut()).max = max;
-            },
-            _ => return false,
-        };
-
-        true
-    }
-
-    /// Sets a guess value for the given variable.
-    /// 
-    /// # Example
-    /// ```
-    /// use geqslib::system::{System, SystemBuilder};
-    /// use geqslib::shunting::new_context;
-    ///  
-    /// let mut ctx = new_context();
-    /// 
-    /// let mut builder = SystemBuilder::new("x + y = 9", &mut ctx)
-    ///     .expect("Failed to create a system...");
-    /// builder.try_constrain_with("x - y = 4");
-    /// 
-    /// let mut sys = builder
-    ///     .get_system()
-    ///     .expect("Failed to constrain system...");
-    /// 
-    /// sys.specify_guess_value("x", 6.5);
-    /// ```
-    pub fn specify_guess_value(&mut self, var: &str, guess: f64) -> bool
-    {
-        if !self.system_vars.contains(&var.into())
-        {
-            return false;
-        }
-
-        match &self.context[var]
-        {
-            Token::Var(value) => {
-                (*value.borrow_mut()).set(guess)
+                (value.borrow_mut()).set(guess);
             },
             _ => return false,
         };
@@ -368,7 +372,7 @@ impl <'a> System<'a>
         {
             match var
             {
-                Token::Var(x) => guess.insert(key.into(), (*x.borrow()).into()),
+                Token::Var(x) => guess.insert(key, (*x.borrow()).into()),
                 _ => continue,
             };
         }

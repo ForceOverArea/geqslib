@@ -4,6 +4,10 @@ pub mod system;
 mod context;
 /// Contains error types for different errors that this crate may throw.
 pub mod errors;
+/// Contains `extern "C"` function definitions for linking this library
+/// against projects in different languages. Not intended for use in 
+/// other Rust projects.
+mod ffi;
 /// Contains root-finding algorithms for building equation-solving tools. 
 pub mod newton;
 /// Contains a basic shunting yard algorithm for evaluating strings as mathematical expressions.
