@@ -19,6 +19,7 @@ use newton::newton_raphson;
 use shunting::{ContextHashMap, compile_to_fn, compile_to_fn_of_hashmap, get_legal_variables_iter, new_context};
 use system::get_equation_unknowns;
 
+/// An internal function for formatting a single-unknown equation to an expression prior to tokenization 
 pub (in crate) fn compile_equation_to_fn(equation: &str, ctx: &ContextHashMap) -> anyhow::Result<impl Fn(f64) -> anyhow::Result<f64>>
 {
     // Ensure that we're solving just one equation
@@ -33,6 +34,7 @@ pub (in crate) fn compile_equation_to_fn(equation: &str, ctx: &ContextHashMap) -
     compile_to_fn(&format!("{} - ({})", sides[0], sides[1]), ctx)
 }
 
+/// An internal function for formatting an equation to an expression prior to tokenization 
 pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &mut ContextHashMap) -> anyhow::Result<impl Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>
 {
     // Ensure that we're solving just one equation
@@ -119,61 +121,3 @@ pub fn solve_equation_from_str(equation: &str, margin: f64, limit: usize) -> any
     let mut ctx = new_context(); // TODO find a way to fix alloc'ing another ctx
     solve_equation_with_context(equation, &mut ctx, margin, limit)
 }
-
-// /// An enum for indicating whether progress was made and what kind of progress was made
-// /// on solving a system of equations.
-// #[derive(Clone, Copy, Debug, PartialEq)]
-// enum SolverStatus
-// {
-//     SolvedSingleUnknown,
-//     SolvedMultivariate,
-//     NoneSolved
-// }
-
-// fn try_solve_equation(system: &Vec<&str>, ctx: &mut ContextHashMap, margin: f64, limit: usize) -> anyhow::Result<bool>
-// {
-//     for equation in system
-//     {
-//         match solve_equation_with_context(equation, ctx, margin, limit)
-//         {
-//             Ok((var, val)) => {
-//                 ctx.add_var_to_ctx(&var, val, NEG_INFINITY, INFINITY);
-//                 return Ok(true);
-//             },
-//             Err(e) => {
-//                 if let Ok(EquationSolverError::SingleUnknownNotFound) = e.downcast()
-//                 {
-//                     continue;
-//                 }
-
-//                 return Err(e);
-//             }
-//         }
-//     }
-//     Ok(false)
-// }
-
-// fn try_solve_system(system: &Vec<&str>, ctx: &mut ContextHashMap, margin: f64, limit: usize) -> anyhow::Result<bool>
-// {
-//     for equation in system
-//     {
-
-//     }
-// }
-
-// pub fn solve_system_from_str(system: &str, margin: f64, limit: usize) -> anyhow::Result<HashMap<String, f64>>
-// {
-//     let mut lines: Vec<&str> = system.split('\n').collect();
-//     let mut ctx = new_context();
-//     let mut status = SolverStatus::NoneSolved;
-//     let mut still_learning = true;
-
-//     loop 
-//     {
-//         if try_solve_equation(system, &mut ctx, margin, limit)
-//         {
-
-//         }
-//     }
-
-// }
