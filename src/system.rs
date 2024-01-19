@@ -229,6 +229,8 @@ impl <'a> SystemBuilder<'a>
         Ok(self.is_fully_constrained())
     }
 
+    /// Consumes `self` in order to produce a `System` object, representing 
+    /// a constrained system of equations.
     pub fn get_system(self) -> Option<System<'a>>
     {
         if self.is_fully_constrained()
@@ -244,6 +246,10 @@ impl <'a> SystemBuilder<'a>
     }
 }
 
+/// A Constrained system of equations that can either have more information specified about its
+/// variables or just be solved after construction.
+/// 
+/// This object can only be built using a `SystemBuilder` object.
 pub struct System<'a>
 {
     context: &'a mut ContextHashMap,
