@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use geqslib::context::ContextHashMap;
+use geqslib::shunting::ContextHashMap;
 use geqslib::shunting::{eval_str, eval_str_with_context, ContextLike};
 
 #[test]

@@ -268,8 +268,7 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
 /// # Example
 /// ```
 /// use std::collections::HashMap;
-/// use geqslib::context::ContextLike;
-/// use geqslib::shunting::{compile_to_fn_of_hashmap, new_context};
+/// use geqslib::shunting::{compile_to_fn_of_hashmap, new_context, ContextLike};
 /// 
 /// let my_expr = "x + 4 * y";
 ///
@@ -336,14 +335,13 @@ pub fn compile_to_fn_of_hashmap(expr: &str, context: &ContextHashMap) -> anyhow:
 /// # Example
 /// ```
 /// use std::collections::HashMap;
-/// use geqslib::context::ContextLike;
-/// use geqslib::shunting::{compile_to_fn, new_context};
+/// use geqslib::shunting::{compile_to_fn, new_context, ContextLike};
 /// 
 /// let my_expr = "x + 4";
 ///
 /// // add variable value to context
 /// let mut my_hm = new_context();
-/// my_hm.add_var_to_ctx("x", 4);
+/// my_hm.add_var_to_ctx("x", 4, );
 /// 
 /// // get a closure from the expression
 /// let my_fn = compile_to_fn(my_expr, &my_hm).unwrap();
@@ -523,11 +521,7 @@ pub fn eval_str(expr: &str) -> anyhow::Result<f64>
 /// 
 /// # Example
 /// ```
-/// use geqslib::context::ContextLike;
-/// use geqslib::shunting::{
-///   eval_str_with_context,
-///   new_context,
-/// };
+/// use geqslib::shunting::{eval_str_with_context, new_context, ContextLike};
 /// 
 /// let my_expr = "sin(pi)";
 /// 

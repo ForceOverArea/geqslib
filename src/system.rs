@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::newton::multivariate_newton_raphson;
 use crate::shunting::{get_legal_variables_iter, ContextHashMap, Token};
 use crate::compile_equation_to_fn_of_hashmap;
 
@@ -35,7 +36,7 @@ impl <'a> SystemBuilder<'a>
     /// # Example
     /// ```
     /// use geqslib::system::SystemBuilder;
-    /// use geqslib::context::new_context;
+    /// use geqslib::shunting::new_context;
     /// 
     /// let mut ctx = new_context();
     /// 
@@ -63,7 +64,7 @@ impl <'a> SystemBuilder<'a>
     /// # Example
     /// ```
     /// use geqslib::system::SystemBuilder;
-    /// use geqslib::context::new_context;
+    /// use geqslib::shunting::new_context;
     /// 
     /// let mut ctx = new_context();
     /// 
@@ -89,7 +90,7 @@ impl <'a> SystemBuilder<'a>
     /// # Equation
     /// ```
     /// use geqslib::system::{ConstrainResult, SystemBuilder};
-    /// use geqslib::context::{ContextHashMap, ContextLike};
+    /// use geqslib::shunting::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
     /// 
@@ -162,7 +163,7 @@ impl <'a> SystemBuilder<'a>
     /// # Example
     /// ```
     /// use geqslib::system::{ConstrainResult, SystemBuilder};
-    /// use geqslib::context::{ContextHashMap, ContextLike};
+    /// use geqslib::shunting::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
     /// 
@@ -188,7 +189,7 @@ impl <'a> SystemBuilder<'a>
     /// # Example
     /// ```
     /// use geqslib::system::{ConstrainResult, SystemBuilder};
-    /// use geqslib::context::{ContextHashMap, ContextLike};
+    /// use geqslib::shunting::{ContextHashMap, ContextLike};
     /// 
     /// let mut ctx = ContextHashMap::new();
     /// ctx.add_var_to_ctx("x", 1.0);
@@ -251,20 +252,24 @@ pub struct System<'a>
 }
 impl <'a> System<'a>
 {
-    /// traps the value of the given variable between `min` and `max`.
+    /// Traps the value of the given variable between `min` and `max`.
     /// 
     /// # Example
     /// ```
     /// use geqslib::system::{System, SystemBuilder};
+    /// use geqslib::shunting::new_context;
+    ///  
+    /// let mut ctx = new_context();
     /// 
-    /// let mut builder = SystemBuilder::new("x + y = 9");
+    /// let mut builder = SystemBuilder::new("x + y = 9", &mut ctx)
+    ///     .expect("Failed to create a system...");
     /// builder.try_constrain_with("x - y = 4");
     /// 
     /// let mut sys = builder
     ///     .get_system()
     ///     .unwrap();
     /// 
-    /// sys.specify_domain
+    /// sys.specify_domain("x", 0.0, 7.0);
     /// ```
     pub fn specify_domain(&mut self, var: &str, min: f64, max: f64) -> bool
     {
@@ -273,7 +278,7 @@ impl <'a> System<'a>
             return false;
         }
 
-        match self.context[var]
+        match &self.context[var]
         {
             Token::Var(value) => {
                 (*value.borrow_mut()).min = min;
@@ -284,6 +289,90 @@ impl <'a> System<'a>
 
         true
     }
+
+    /// Sets a guess value for the given variable.
+    /// 
+    /// # Example
+    /// ```
+    /// use geqslib::system::{System, SystemBuilder};
+    /// use geqslib::shunting::new_context;
+    ///  
+    /// let mut ctx = new_context();
+    /// 
+    /// let mut builder = SystemBuilder::new("x + y = 9", &mut ctx)
+    ///     .expect("Failed to create a system...");
+    /// builder.try_constrain_with("x - y = 4");
+    /// 
+    /// let mut sys = builder
+    ///     .get_system()
+    ///     .expect("Failed to constrain system...");
+    /// 
+    /// sys.specify_guess_value("x", 6.5);
+    /// ```
+    pub fn specify_guess_value(&mut self, var: &str, guess: f64) -> bool
+    {
+        if !self.system_vars.contains(&var.into())
+        {
+            return false;
+        }
+
+        match &self.context[var]
+        {
+            Token::Var(value) => {
+                (*value.borrow_mut()).set(guess)
+            },
+            _ => return false,
+        };
+
+        true
+    }
+
+    /// Tries to solve the system of equations to within the radius `margin` 
+    /// of the actual solution in `limit` iterations. 
+    /// 
+    /// # Example
+    /// ```
+    /// use geqslib::system::{System, SystemBuilder};
+    /// use geqslib::shunting::new_context;
+    /// 
+    /// let mut ctx = new_context();
+    /// 
+    /// let mut builder = SystemBuilder::new("x + y = 9", &mut ctx)
+    ///     .expect("Failed to create a system...");
+    /// builder.try_constrain_with("x - y = 4");
+    /// 
+    /// let mut sys = builder
+    ///     .get_system()
+    ///     .expect("Failed to constrain system...");
+    /// 
+    /// let soln = sys.solve(0.0001, 10)
+    ///     .expect("Failed to find a solution...");
+    /// 
+    /// // Solution is x = 6.5, y = 2.5
+    /// assert!((6.5 - soln["x"]).abs() < 0.001);
+    /// assert!((2.5 - soln["y"]).abs() < 0.001);
+    /// ```
+    pub fn solve(self, margin: f64, limit: usize) -> anyhow::Result<HashMap<String, f64>>
+    {
+        let mut guess = HashMap::new();
+        for (key, var) in self.context
+        {
+            match var
+            {
+                Token::Var(x) => guess.insert(key.into(), (*x.borrow()).into()),
+                _ => continue,
+            };
+        }
+
+        let res = multivariate_newton_raphson(
+            self.system_equations, 
+            &mut guess,
+            margin, 
+            limit
+        )?;
+
+        Ok(res.clone())
+    }
 }
 
 /// Returns an iterator with the unknown variables in a given equation or expression. 
@@ -293,7 +382,7 @@ impl <'a> System<'a>
 /// # Example
 /// ```
 /// use geqslib::system::get_equation_unknowns;
-/// use geqslib::context::{ContextHashMap, ContextLike};
+/// use geqslib::shunting::{ContextHashMap, ContextLike};
 /// 
 /// let mut ctx = ContextHashMap::new();
 /// 

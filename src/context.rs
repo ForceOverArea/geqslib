@@ -106,11 +106,15 @@ pub trait ContextLike: private::Sealed
 
     fn add_const_to_ctx<T>(&mut self, name: &str, val: T) -> ()
     where
-        T: Into<f64>;
+        T: Into<f64> + Copy;
 
-    fn add_var_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T) -> ()
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    where 
+        T: Into<f64> + Copy;
+
+    fn add_var_with_domain_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T) -> ()
     where
-        T: Into<f64>;
+        T: Into<f64> + Copy;
 } 
 
 /// Provides extra methods for the `ContextHashMap` type.
@@ -124,19 +128,23 @@ impl ContextLike for ContextHashMap
     /// Adds a named constant value to the `ContextHashMap`.
     fn add_const_to_ctx<T>(&mut self, name: &str, val: T) 
     where
-        T: Into<f64>
+        T: Into<f64> + Copy 
     {
         self.insert(name.to_owned(), Token::Num(val.into()));
     }
     
-    /// Adds a named variable to the `ContextHashMap`. 
-    /// 
-    /// Under the hood, the 'variable' value is stored as an 
-    /// `Rc<RefCell<f64>>`. This allows other algorithms to 
-    /// manipulate the variable's value.
-    fn add_var_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T) 
+    /// Adds a variable to the `ContextHashMap` with an infinite domain.
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    where 
+        T: Into<f64> + Copy 
+    {
+        self.add_var_with_domain_to_ctx(name.into(), val.into(), f64::NEG_INFINITY, f64::INFINITY);
+    }
+
+    /// Adds a named variable to the `ContextHashMap` with a specified domain.
+    fn add_var_with_domain_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T) 
     where
-        T: Into<f64>
+        T: Into<f64> + Copy
     {
         self.insert(name.to_owned(), Token::Var(Rc::new(RefCell::new(Variable::new(val, min, max)))));
     }
@@ -147,7 +155,7 @@ impl ContextLike for ContextHashMap
 /// 
 /// # Example
 /// ```
-/// use geqslib::context::{new_context, Token};
+/// use geqslib::shunting::{new_context, Token};
 /// use std::f64::consts::PI;
 /// 
 /// let ctx = new_context();

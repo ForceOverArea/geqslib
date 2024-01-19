@@ -1,13 +1,15 @@
 /// Contains functions for checking whether systems or equations are properly constrained for solving.
 pub mod system;
-/// Contains structs for passing information to the shunting yard algorithm.
-pub mod context;
+/// Contains structs for passing information to the shunting yard algorithm. This is re-exported by the `shunting` module.
+mod context;
 /// Contains error types for different errors that this crate may throw.
 pub mod errors;
 /// Contains root-finding algorithms for building equation-solving tools. 
 pub mod newton;
 /// Contains a basic shunting yard algorithm for evaluating strings as mathematical expressions.
 pub mod shunting;
+/// Contains the `Variable` type for numbers that exist on a user-specified domain.
+pub mod variable;
 
 use std::collections::HashMap;
 
@@ -50,7 +52,7 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &mut Co
     // Add a default guess value of 1 for all unspecified vars
     for var in unknowns
     {
-        ctx.add_var_to_ctx(&var, 1.0);
+        ctx.add_var_with_domain_to_ctx(&var, 1.0, f64::NEG_INFINITY, f64::INFINITY);
     }
 
     compile_to_fn_of_hashmap(&format!("{} - ({})", sides[0], sides[1]), ctx)
@@ -66,7 +68,7 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &mut Co
 /// # Example
 /// ```
 /// use geqslib::solve_equation_with_context;
-/// use geqslib::context::new_context;
+/// use geqslib::shunting::new_context;
 /// 
 /// let mut ctx = new_context();
 /// 
@@ -89,7 +91,7 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
         return Err(EquationSolverError::SingleUnknownNotFound.into());
     }
     
-    ctx.add_var_to_ctx(unknowns[0], 1.0);
+    ctx.add_var_with_domain_to_ctx(unknowns[0], 1.0, f64::NEG_INFINITY, f64::INFINITY);
     let f = compile_equation_to_fn(equation, ctx)?;
 
     Ok((unknowns[0].to_owned(), newton_raphson(f, 1.0, margin, limit)?))
@@ -128,6 +130,37 @@ pub fn solve_equation_from_str(equation: &str, margin: f64, limit: usize) -> any
 //     NoneSolved
 // }
 
+// fn try_solve_equation(system: &Vec<&str>, ctx: &mut ContextHashMap, margin: f64, limit: usize) -> anyhow::Result<bool>
+// {
+//     for equation in system
+//     {
+//         match solve_equation_with_context(equation, ctx, margin, limit)
+//         {
+//             Ok((var, val)) => {
+//                 ctx.add_var_to_ctx(&var, val, NEG_INFINITY, INFINITY);
+//                 return Ok(true);
+//             },
+//             Err(e) => {
+//                 if let Ok(EquationSolverError::SingleUnknownNotFound) = e.downcast()
+//                 {
+//                     continue;
+//                 }
+
+//                 return Err(e);
+//             }
+//         }
+//     }
+//     Ok(false)
+// }
+
+// fn try_solve_system(system: &Vec<&str>, ctx: &mut ContextHashMap, margin: f64, limit: usize) -> anyhow::Result<bool>
+// {
+//     for equation in system
+//     {
+
+//     }
+// }
+
 // pub fn solve_system_from_str(system: &str, margin: f64, limit: usize) -> anyhow::Result<HashMap<String, f64>>
 // {
 //     let mut lines: Vec<&str> = system.split('\n').collect();
@@ -135,42 +168,12 @@ pub fn solve_equation_from_str(equation: &str, margin: f64, limit: usize) -> any
 //     let mut status = SolverStatus::NoneSolved;
 //     let mut still_learning = true;
 
-//     for var in get_legal_variables_iter(system)
-//     {
-//         ctx.add_var_to_ctx(var, 1.0); // add initial guesses for all vars
-//     }
-
 //     loop 
 //     {
-//         if still_learning
+//         if try_solve_equation(system, &mut ctx, margin, limit)
 //         {
-//             still_learning = false;
-//             for line in lines
-//             {
-//                 match solve_equation_with_context(line, &mut ctx, margin, limit)
-//                 {
-//                     Ok((var, val)) => {
-//                         ctx.add_var_to_ctx(&var, val);
-//                     },
-//                     Err(e) => {
-//                         if let Ok(EquationSolverError::SingleUnknownNotFound) = e.downcast()
-//                         {
-//                             continue;
-//                         }
 
-//                         return Err(e);
-//                     }
-//                 }
-//             }
 //         }
-//         else
-//         {
-//             /*
-//              * Code to solve multivariate problems goes here
-//              */
-//             continue;
-//         }
-//         break;
 //     }
 
 // }

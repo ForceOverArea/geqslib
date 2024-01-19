@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use gmatlib::Matrix;
 use crate::errors::NewtonRaphsonSolverError;
 
-const _DX_: f64 = 0.0001; 
+const _DX_: f64 = 0.001; 
 
 // TODO: untangle the mess caused by having internally-produced closures return an externally defined error type
 
@@ -47,6 +47,8 @@ where anyhow::Error: From<E>
     let y = f(guess)?;
     let y_prime = (f(guess + _DX_)? - y) / _DX_;
     let delta = y / y_prime;
+
+    println!("guess: {guess}, y: {y}, y': {y_prime}, delta: {delta}");
 
     // Check if we are sufficiently close to the solution:
     if y.abs() <= margin && delta <= margin // ...in both the y AND x directions...
