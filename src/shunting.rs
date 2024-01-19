@@ -127,7 +127,7 @@ fn tokenize_with_context(tok: &str, context: &ContextHashMap) -> anyhow::Result<
 fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>> 
 {
     let punctuated = punctuate(expr);
-    let words = punctuated.split(' ').filter(|c| *c != "");
+    let words = punctuated.split(' ').filter(|c| !c.is_empty());
 
     let mut stack: Vec<&str> = Vec::new();
     let mut queue: Vec<Token> = Vec::new();
@@ -222,7 +222,7 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
                             unary_minus = false;
                         },
                         Token::Var(val) => {
-                            queue.push(Token::Var(Rc::clone(&val)));
+                            queue.push(Token::Var(Rc::clone(val)));
                             unary_minus = false;
                         }
                         Token::Func(_, _) => {
@@ -359,13 +359,7 @@ pub fn compile_to_fn(expr: &str, context: &ContextHashMap) -> anyhow::Result<imp
         }
     }
 
-    let is_var = |x: &(&String, &Token)| {
-        match x.1 
-        { 
-            Token::Var(_) => true, 
-            _ => false ,
-        }
-    };
+    let is_var = |x: &(&String, &Token)| matches!(x.1, Token::Var(_));
 
     // Ensure that there is only one given variable to track
     let present_vars = Vec::from_iter(context.iter().filter(is_var));

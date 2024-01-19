@@ -21,13 +21,16 @@ pub enum ConstrainResult
     WillOverConstrain,
 }
 
+/// Type alias for `System` and `SystemBuilder`
+type BoxedFnOfHashMapToResultF64 = Box<dyn Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>;
+
 /// An object for building up a system of equations and ensuring that it is 
 /// fully constrained prior to attempting to solve it.
 pub struct SystemBuilder<'a>
 {
     context: &'a mut ContextHashMap,
     system_vars: Vec<String>,
-    system_equations: Vec<Box<dyn Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>>,
+    system_equations: Vec<BoxedFnOfHashMapToResultF64>,
 }
 impl <'a> SystemBuilder<'a>
 {
@@ -143,7 +146,7 @@ impl <'a> SystemBuilder<'a>
 
         // Add the equation to the system
         self.system_equations.push(
-            Box::new(compile_equation_to_fn_of_hashmap(equation, &mut self.context)?)
+            Box::new(compile_equation_to_fn_of_hashmap(equation, self.context)?)
         );
 
         // Add possible newly-found variable to the system
@@ -221,7 +224,7 @@ impl <'a> SystemBuilder<'a>
                         break;
                     },
                     Err(e) => {
-                        return Err(e.into());
+                        return Err(e);
                     }
                 }
             }
@@ -254,7 +257,7 @@ pub struct System<'a>
 {
     context: &'a mut ContextHashMap,
     system_vars: Vec<String>,
-    system_equations: Vec<Box<dyn Fn(&HashMap<String, f64>) -> anyhow::Result<f64>>>,
+    system_equations: Vec<BoxedFnOfHashMapToResultF64>,
 }
 impl <'a> System<'a>
 {
@@ -287,8 +290,8 @@ impl <'a> System<'a>
         match &self.context[var]
         {
             Token::Var(value) => {
-                (*value.borrow_mut()).min = min;
-                (*value.borrow_mut()).max = max;
+                (value.borrow_mut()).min = min;
+                (value.borrow_mut()).max = max;
             },
             _ => return false,
         };

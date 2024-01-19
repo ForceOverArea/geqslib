@@ -126,9 +126,9 @@ where anyhow::Error: From<E>
 
     // Build jacobian w/ F(X) values... we will mutate them to F'(X) later
     let mut elements = vec![];
-    for i in 0..n 
+    for func in &f 
     {
-        let row = &mut vec![f[i](guess)?; n];
+        let row = &mut vec![func(guess)?; n];
         elements.append(row);
     }
     let mut jacobian = Matrix::from_vec(n, elements)?; // <- should this be a panic on failure?
@@ -144,7 +144,7 @@ where anyhow::Error: From<E>
         for i in 0..n
         {
             // mutate values to partial derivatives
-            jacobian[(i, j)] = (f[i](&guess)? - jacobian[(i, j)]) / _DX_;
+            jacobian[(i, j)] = (f[i](guess)? - jacobian[(i, j)]) / _DX_;
         }
         if let Some(v) = guess.get_mut(&vars[j])
         {
@@ -176,9 +176,9 @@ where anyhow::Error: From<E>
     }
 
     // Build next guess vector
-    for i in 0..n
+    for (i, var) in vars.iter().enumerate().take(n)
     {
-        if let (Some(guess_val), Some(delta)) = (guess.get_mut(&vars[i]), deltas.get(i))
+        if let (Some(guess_val), Some(delta)) = (guess.get_mut(var), deltas.get(i))
         {
             *guess_val -= delta;
         }

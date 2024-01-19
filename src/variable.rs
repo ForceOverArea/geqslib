@@ -39,7 +39,7 @@ impl Variable
     /// 
     /// assert_eq!(f64::from(var), 5.005);
     /// ```
-    pub fn set<T>(&mut self, new_value: T) -> ()
+    pub fn set<T>(&mut self, new_value: T)
     where T: Into<f64> + Copy
     {
         if new_value.into() > self.max
@@ -70,7 +70,7 @@ where T: Into<f64>
 {
     fn add_assign(&mut self, rhs: T) 
     {
-        self.set(self.value * rhs.into());
+        self.set(self.value + rhs.into());
     }
 }
 
@@ -79,7 +79,7 @@ where T: Into<f64>
 {
     fn sub_assign(&mut self, rhs: T) 
     {
-        self.set(self.value * rhs.into());
+        self.set(self.value - rhs.into());
     }
 }
 
@@ -97,6 +97,6 @@ where T: Into<f64>
 {
     fn div_assign(&mut self, rhs: T) 
     {
-        self.set(self.value * rhs.into());
+        self.set(self.value / rhs.into());
     }
 }

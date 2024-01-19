@@ -102,17 +102,17 @@ pub (crate) mod private
 /// Provides extra methods for `ContextHashMap`.
 pub trait ContextLike: private::Sealed
 {
-    fn add_func_to_ctx(&mut self, name: &str, func: fn(&[f64]) -> f64, num_args: usize) -> ();
+    fn add_func_to_ctx(&mut self, name: &str, func: fn(&[f64]) -> f64, num_args: usize);
 
-    fn add_const_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    fn add_const_to_ctx<T>(&mut self, name: &str, val: T)
     where
         T: Into<f64> + Copy;
 
-    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T)
     where 
         T: Into<f64> + Copy;
 
-    fn add_var_with_domain_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T) -> ()
+    fn add_var_with_domain_to_ctx<T>(&mut self, name: &str, val: T, min: T, max: T)
     where
         T: Into<f64> + Copy;
 } 
@@ -134,11 +134,11 @@ impl ContextLike for ContextHashMap
     }
     
     /// Adds a variable to the `ContextHashMap` with an infinite domain.
-    fn add_var_to_ctx<T>(&mut self, name: &str, val: T) -> ()
+    fn add_var_to_ctx<T>(&mut self, name: &str, val: T)
     where 
         T: Into<f64> + Copy 
     {
-        self.add_var_with_domain_to_ctx(name.into(), val.into(), f64::NEG_INFINITY, f64::INFINITY);
+        self.add_var_with_domain_to_ctx(name, val.into(), f64::NEG_INFINITY, f64::INFINITY);
     }
 
     /// Adds a named variable to the `ContextHashMap` with a specified domain.
