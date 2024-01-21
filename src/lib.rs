@@ -15,7 +15,7 @@ pub mod shunting;
 /// Contains the `Variable` type for numbers that exist on a user-specified domain.
 pub mod variable;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use context::ContextLike;
 use errors::EquationSolverError;
@@ -89,6 +89,8 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, gue
     // Check constraints
     let unknowns: Vec<&str> = get_legal_variables_iter(equation)
         .filter(|&x| !ctx.contains_key(x))
+        .collect::<HashSet<&str>>()
+        .into_iter()
         .collect();
 
     // Exit early if equation is improperly constrained

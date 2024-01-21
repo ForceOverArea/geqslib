@@ -48,8 +48,6 @@ where anyhow::Error: From<E>
     let y_prime = (f(guess + _DX_)? - y) / _DX_;
     let delta = y / y_prime;
 
-    println!("guess: {guess}, y: {y}, y': {y_prime}, delta: {delta}");
-
     // Check if we are sufficiently close to the solution:
     if y.abs() <= margin && delta <= margin // ...in both the y AND x directions...
     {

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::newton::multivariate_newton_raphson;
 use crate::shunting::{get_legal_variables_iter, ContextHashMap, Token};
 use crate::compile_equation_to_fn_of_hashmap;
@@ -383,5 +383,8 @@ impl System
 /// ```
 pub fn get_equation_unknowns<'a>(equation: &'a str, ctx: &'a ContextHashMap) -> impl Iterator<Item = &'a str>
 {
-    get_legal_variables_iter(equation).filter(|&x| !ctx.contains_key(x))
+    get_legal_variables_iter(equation)
+        .filter(|&x| !ctx.contains_key(x))
+        .collect::<HashSet<&str>>()
+        .into_iter()
 }
