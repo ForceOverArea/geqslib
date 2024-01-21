@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ptr::copy_nonoverlapping;
 use crate::newton::multivariate_newton_raphson;
 use crate::shunting::{get_legal_variables_iter, ContextHashMap, Token};
 use crate::compile_equation_to_fn_of_hashmap;
@@ -61,21 +60,6 @@ impl SystemBuilder
             system_vars,
             system_equations: vec![starting_eqn],
         })
-    }
-
-    /// Creates an owned `SystemBuilder` object from a `*const` to one.
-    pub (in crate) unsafe fn from_raw_pointer(p_builder: *const SystemBuilder) -> SystemBuilder
-    {
-        let mut builder = SystemBuilder 
-        {  
-            context: ContextHashMap::new(),
-            system_vars: vec![],
-            system_equations: vec![],
-        };
-
-        unsafe { copy_nonoverlapping(p_builder, &mut builder, 1) };
-
-        builder
     }
 
     /// Gives a reference to the unknown variables in the system.
@@ -284,21 +268,6 @@ pub struct System
 }
 impl System
 {
-    /// Creates an owned `SystemBuilder` object from a `*const` to one.
-    pub (in crate) unsafe fn from_raw_pointer(p_system: *const System) -> System
-    {
-        let mut system = System
-        {  
-            context: ContextHashMap::new(),
-            system_vars: vec![],
-            system_equations: vec![],
-        };
-
-        unsafe { copy_nonoverlapping(p_system, &mut system, 1) };
-
-        system
-    }
-
     /// Traps the value of the given variable between `min` and 
     /// `max` and sets an initial guess value for it.
     /// 

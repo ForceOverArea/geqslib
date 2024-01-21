@@ -1,6 +1,4 @@
-use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
-use std::ffi::{c_char, CStr, c_int, c_void, c_double, c_uint, CString};
-use std::mem;
+use std::ffi::{c_char, c_int, c_void, c_double, c_uint, CStr, CString};
 use std::panic::catch_unwind;
 use std::ptr::{null, copy_nonoverlapping};
 
@@ -15,28 +13,32 @@ unsafe fn new_owned_string(s: *const c_char) -> String
     String::from_utf8_lossy(c_str.to_bytes()).to_string()
 } 
 
-/// Effectively converts an owned Rust struct to a pointer to a non-owned one.  
+/// Converts an owned Rust struct to a pointer that must be manually re-owned or deallocated
 #[inline]
-fn leak_object<T>(obj: T) -> *const T
+fn leak_object<T>(obj: T) -> *mut T
 {
-    let p_obj: *const T = &obj;
-    mem::forget(obj);
+    Box::into_raw(Box::new(obj))
+}
 
-    p_obj
+/// Converts a raw pointer to an owned Rust struct before dropping it
+#[inline]
+unsafe fn destroy_object<T>(p_obj: *mut T)
+{
+    let _dropper = Box::from_raw(p_obj);
 }
 
 /// Creates a new empty `ContextHashMap` and returns a C-compatible `void *` to it.
 #[no_mangle]
-pub extern "C" fn new_context_hash_map() -> *const c_void
+pub unsafe extern "C" fn new_context_hash_map() -> *mut c_void
 {
-    leak_object(ContextHashMap::new()) as *const c_void
+    leak_object(ContextHashMap::new()) as *mut c_void
 }
 
 /// Creates a new `ContextHashMap` created via `new_context` and returns a C-compatible `void *` to it.
 #[no_mangle]
-pub extern "C" fn new_default_context_hash_map() -> *const c_void
+pub unsafe extern "C" fn new_default_context_hash_map() -> *const c_void
 {
-    leak_object(new_context()) as *const c_void
+    leak_object(new_context()) as *mut c_void
 }
 
 /// Adds a constant value to the `ContextHashMap` at the given pointer.
@@ -85,24 +87,13 @@ pub extern "C" fn new_system_builder(equation: *const c_char, context: *const c_
     let res = catch_unwind(|| {
         let equation_str = unsafe { new_owned_string(equation) };
         
-        let mut ctx = ContextHashMap::new();
-        unsafe { copy_nonoverlapping(context as *const ContextHashMap, &mut ctx, 1) };
+        let ctx = unsafe { (*(context as *const ContextHashMap)).clone() };
 
         let builder = match SystemBuilder::new(&equation_str, ctx)
         {
             Ok(x) => x,
             Err(_) => return null(),
         };
-
-        // let layout = Layout::new::<SystemBuilder>();
-        // let p_builder = unsafe { alloc(layout) as *mut SystemBuilder };
-        // if p_builder.is_null() 
-        // {
-        //     handle_alloc_error(layout);
-        // }
-
-        // unsafe { copy_nonoverlapping(&builder, p_builder, 1) };
-        // mem::forget(builder); // leak builder so that foreign function can manage memory
 
         leak_object(builder)
     });
@@ -163,28 +154,17 @@ pub extern "C" fn is_fully_constrained(p_builder: *mut c_void) -> c_int
 /// Tries to create a system from a `SystemBuilder` located at the given pointer,
 /// returning a pointer to the created `System` if successful or `NULL` if not.
 #[no_mangle]
-pub extern "C" fn build_system(p_builder: *const c_void) -> *const c_void
+pub extern "C" fn build_system(p_builder: *mut c_void) -> *const c_void
 {
     let res = catch_unwind(|| {
-        let builder = unsafe { SystemBuilder::from_raw_pointer(p_builder as *const SystemBuilder) };
+        let builder = unsafe { Box::from_raw(p_builder as *mut SystemBuilder) };
         let system = match builder.build_system()
         {
             Some(s) => s,
             None => return null(),
         };
 
-        let layout = Layout::new::<System>();
-
-        let p_system = unsafe { alloc(layout) as *mut System };
-        if p_system.is_null() 
-        {
-            handle_alloc_error(layout);
-        }
-
-        unsafe { copy_nonoverlapping(&system, p_system, 1) };
-        mem::forget(system); // leak system so that foreign function can manage memory
-
-        p_system
+        leak_object(system)
     });
 
     match res 
@@ -228,10 +208,10 @@ pub extern "C" fn specify_variable(p_system: *mut c_void, var: *const c_char, gu
 /// of the actual solution in `limit` iterations, returning a C `char *` containing the 
 /// solution to the system or `NULL` if the solution failed.
 #[no_mangle]
-pub extern "C" fn solve_system(p_system: *const c_void, margin: c_double, limit: c_uint) -> *const c_char
+pub extern "C" fn solve_system(p_system: *mut c_void, margin: c_double, limit: c_uint) -> *const c_char
 {
     let res = catch_unwind(|| {
-        let system = unsafe { System::from_raw_pointer(p_system as *const System) };
+        let system = unsafe { Box::from_raw(p_system as *mut System) };
 
         let soln = match system.solve(margin, limit as usize)
         {
@@ -259,26 +239,23 @@ pub extern "C" fn solve_system(p_system: *const c_void, margin: c_double, limit:
 
 /// Frees a `ContextHashMap` object at the given pointer
 #[no_mangle]
-pub extern "C" fn free_context_hash_map(p_context: *mut c_void)
+pub unsafe extern "C" fn free_context_hash_map(p_context: *mut c_void)
 {
-    let layout = Layout::new::<ContextHashMap>();
-    unsafe { dealloc(p_context as *mut u8, layout) };
+    destroy_object(p_context as *mut ContextHashMap);
 }
 
 /// Frees a `SystemBuilder` object at the given pointer
 #[no_mangle]
-pub extern "C" fn free_system_builder(p_builder: *mut c_void)
+pub unsafe extern "C" fn free_system_builder(p_builder: *mut c_void)
 {
-    let layout = Layout::new::<SystemBuilder>();
-    unsafe { dealloc(p_builder as *mut u8, layout) };
+    destroy_object(p_builder as *mut SystemBuilder);
 }
 
 /// Frees a `System` object at the given pointer
 #[no_mangle]
-pub extern "C" fn free_system(p_builder: *mut c_void)
+pub unsafe extern "C" fn free_system(p_system: *mut c_void)
 {
-    let layout = Layout::new::<System>();
-    unsafe { dealloc(p_builder as *mut u8, layout) };
+    destroy_object(p_system as *mut System);
 }
 
 /// Frees the nul-terminated `char *` given
