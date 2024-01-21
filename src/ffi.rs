@@ -70,7 +70,7 @@ pub extern "C" fn solve_equation(equation: *const c_char, context: *const c_void
         let soln_str: CString = CString::new(format!("{}={}", var, val))
             .expect("failed to create C-compatible solution string!");
 
-        soln_str.as_ptr()
+        soln_str.into_raw()
     });
 
     match res
