@@ -65,11 +65,11 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &mut Co
 }
 
 /// Solves an equation given as a string for the SINGLE
-/// `Token::Var` in `ctx`. If a different number of variables
-/// are given, no solution will be attempted.
-/// 
-/// Guess values for the unknown variable are pulled from the
-/// value that it was initialized to in the `ContextHashMap`.
+/// unknown that is inferred based on the context and the given equation
+/// string. The given context must contain all known symbols in the 
+/// equation but NOT the variable that is to be solved for. 
+/// E.g. the context for `"x + sin(y) = 9"` must define a value for `"y"` 
+/// and `"sin"`, but NO value for `"x"` if `"x"` is the variable to be solved for.
 /// 
 /// # Example
 /// ```
@@ -84,7 +84,7 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &mut Co
 /// assert_eq!(var, "x");
 /// assert!((soln - 8.0).abs() < 0.001);
 /// ```
-pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, margin: f64, limit: usize) -> anyhow::Result<(String, f64)>
+pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, guess: f64, min: f64, max: f64, margin: f64, limit: usize) -> anyhow::Result<(String, f64)>
 {
     // Check constraints
     let unknowns: Vec<&str> = get_legal_variables_iter(equation)
@@ -97,7 +97,7 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
         return Err(EquationSolverError::SingleUnknownNotFound.into());
     }
     
-    ctx.add_var_with_domain_to_ctx(unknowns[0], 1.0, f64::NEG_INFINITY, f64::INFINITY);
+    ctx.add_var_with_domain_to_ctx(unknowns[0], guess, min, max);
     let f = compile_equation_to_fn(equation, ctx)?;
 
     Ok((unknowns[0].to_owned(), newton_raphson(f, 1.0, margin, limit)?))
@@ -109,7 +109,8 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
 /// and functions.
 /// 
 /// Intial guess values are set to 1.0f64 for the unknown variable if it 
-/// can be inferred from the equation.
+/// can be inferred from the equation and the unknown variable is assumed to
+/// exist on \[`f64::NEG_INFINITY`, `f64::INFINITY`\].
 /// 
 /// # Example
 /// ```
@@ -123,5 +124,5 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, mar
 pub fn solve_equation_from_str(equation: &str, margin: f64, limit: usize) -> anyhow::Result<(String, f64)>
 {
     let mut ctx = new_context(); // TODO find a way to fix alloc'ing another ctx
-    solve_equation_with_context(equation, &mut ctx, margin, limit)
+    solve_equation_with_context(equation, &mut ctx, 1.0, f64::NEG_INFINITY, f64::INFINITY, margin, limit)
 }

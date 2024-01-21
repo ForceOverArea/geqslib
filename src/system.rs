@@ -153,7 +153,7 @@ impl SystemBuilder
             // Return early if adding the equation will not gainfully constrain the system
             return Ok(ConstrainResult::WillNotConstrain);
         }
-        else if (sys_equations + 1) > (sys_unknowns + 1) || self.is_fully_constrained()
+        else if (sys_equations + 1) > (sys_unknowns + 1) || self.is_fully_constrained() // TODO: is the OR redundant?
         {
             // Return early if the system will be over-constrained or 
             // no longer fully constrained.
@@ -182,9 +182,9 @@ impl SystemBuilder
     /// # Example
     /// ```
     /// use geqslib::system::{ConstrainResult, SystemBuilder};
-    /// use geqslib::shunting::{ContextHashMap, ContextLike};
+    /// use geqslib::shunting::{new_context, ContextLike};
     /// 
-    /// let mut ctx = ContextHashMap::new();
+    /// let mut ctx = new_context();
     /// 
     /// let mut my_sys = SystemBuilder::new("x + y = 9", &mut ctx).unwrap();
     /// 
@@ -262,6 +262,13 @@ impl SystemBuilder
         }
         
         None
+    }
+}
+
+impl std::fmt::Debug for SystemBuilder
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Vars: {:#?} \nEquations: {}", self.system_vars, self.system_equations.len())
     }
 }
 

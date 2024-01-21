@@ -4,7 +4,8 @@ use std::mem;
 use std::panic::catch_unwind;
 use std::ptr::{null, copy_nonoverlapping};
 
-use crate::shunting::new_context;
+use crate::shunting::{ContextHashMap, new_context, ContextLike};
+use crate::solve_equation_with_context;
 use crate::system::{System, SystemBuilder, ConstrainResult};
 
 /// Shorthand for creating an owned string from a C `char *`
@@ -14,31 +15,96 @@ unsafe fn new_owned_string(s: *const c_char) -> String
     String::from_utf8_lossy(c_str.to_bytes()).to_string()
 } 
 
-/// Allocates a new `SystemBuilder` object on the Rust side of the FFI and returns a raw pointer to it.
+/// Effectively converts an owned Rust struct to a pointer to a non-owned one.  
+#[inline]
+fn leak_object<T>(obj: T) -> *const T
+{
+    let p_obj: *const T = &obj;
+    mem::forget(obj);
+
+    p_obj
+}
+
+/// Creates a new empty `ContextHashMap` and returns a C-compatible `void *` to it.
 #[no_mangle]
-pub extern "C" fn new_system_builder(equation: *const c_char) -> *const c_void
+pub extern "C" fn new_context_hash_map() -> *const c_void
+{
+    leak_object(ContextHashMap::new()) as *const c_void
+}
+
+/// Creates a new `ContextHashMap` created via `new_context` and returns a C-compatible `void *` to it.
+#[no_mangle]
+pub extern "C" fn new_default_context_hash_map() -> *const c_void
+{
+    leak_object(new_context()) as *const c_void
+}
+
+/// Adds a constant value to the `ContextHashMap` at the given pointer.
+#[no_mangle]
+pub unsafe extern "C" fn add_const_to_ctx(context: *mut c_void, name: *const c_char, val: c_double)
+{
+    let name_str = new_owned_string(name);
+    (*(context as *mut ContextHashMap)).add_const_to_ctx(&name_str, val)
+}
+
+/// Solves a single-unknown equation for a single unknown variable, returning the solution as a
+/// nul-terminated C `char *` on success or `NULL` on failure.
+#[no_mangle]
+pub extern "C" fn solve_equation(equation: *const c_char, context: *const c_void, guess: c_double, min: c_double, max: c_double, margin: c_double, limit: c_uint) -> *const c_char
 {
     let res = catch_unwind(|| {
         let equation_str = unsafe { new_owned_string(equation) };
-        let ctx = new_context();
+
+        let mut ctx = ContextHashMap::new();
+        unsafe { copy_nonoverlapping(context as *const ContextHashMap, &mut ctx, 1) };
+
+        let (var, val) = match solve_equation_with_context(&equation_str, &mut ctx, guess, min, max, margin, limit as usize)
+        {
+            Ok(s) => s,
+            Err(_) => return null() as *const c_char,
+        };
+
+        // Create a nul-terminated string with the solution data
+        let soln_str: CString = CString::new(format!("{}={}", var, val))
+            .expect("failed to create C-compatible solution string!");
+
+        soln_str.as_ptr()
+    });
+
+    match res
+    {
+        Ok(s) => s,
+        Err(_) => null() as *const c_char,
+    }
+}
+
+/// Allocates a new `SystemBuilder` object on the Rust side of the FFI and returns a raw pointer to it.
+#[no_mangle]
+pub extern "C" fn new_system_builder(equation: *const c_char, context: *const c_void) -> *const c_void
+{
+    let res = catch_unwind(|| {
+        let equation_str = unsafe { new_owned_string(equation) };
+        
+        let mut ctx = ContextHashMap::new();
+        unsafe { copy_nonoverlapping(context as *const ContextHashMap, &mut ctx, 1) };
+
         let builder = match SystemBuilder::new(&equation_str, ctx)
         {
             Ok(x) => x,
             Err(_) => return null(),
         };
 
-        let layout = Layout::new::<SystemBuilder>();
-    
-        let p_builder = unsafe { alloc(layout) as *mut SystemBuilder };
-        if p_builder.is_null() 
-        {
-            handle_alloc_error(layout);
-        }
+        // let layout = Layout::new::<SystemBuilder>();
+        // let p_builder = unsafe { alloc(layout) as *mut SystemBuilder };
+        // if p_builder.is_null() 
+        // {
+        //     handle_alloc_error(layout);
+        // }
 
-        unsafe { copy_nonoverlapping(&builder, p_builder, 1) };
-        mem::forget(builder); // leak builder so that foreign function can manage memory
+        // unsafe { copy_nonoverlapping(&builder, p_builder, 1) };
+        // mem::forget(builder); // leak builder so that foreign function can manage memory
 
-        p_builder
+        leak_object(builder)
     });
 
     match res
@@ -128,6 +194,13 @@ pub extern "C" fn build_system(p_builder: *const c_void) -> *const c_void
     }
 }
 
+/// Prints information about a `SystemBuilder` for debugging purposes.
+#[no_mangle]
+pub unsafe extern "C" fn debug_system_builder(p_builder: *const c_void)
+{
+    println!("{:#?}", *(p_builder as *const SystemBuilder));
+}
+
 /// Specifies a guess and domain for a given variable in the `System` at the given pointer.
 /// 
 /// The returned C `int` value indicates the following:
@@ -138,7 +211,7 @@ pub extern "C" fn specify_variable(p_system: *mut c_void, var: *const c_char, gu
 {
     let res = catch_unwind(|| {
         unsafe
-        {
+        {    
             let var_str = new_owned_string(var);
             (*(p_system as *mut System)).specify_variable(&var_str, guess, min, max);
         }
@@ -182,6 +255,14 @@ pub extern "C" fn solve_system(p_system: *const c_void, margin: c_double, limit:
         Ok(s) => s,
         Err(_) => null() as *const c_char,
     }
+}
+
+/// Frees a `ContextHashMap` object at the given pointer
+#[no_mangle]
+pub extern "C" fn free_context_hash_map(p_context: *mut c_void)
+{
+    let layout = Layout::new::<ContextHashMap>();
+    unsafe { dealloc(p_context as *mut u8, layout) };
 }
 
 /// Frees a `SystemBuilder` object at the given pointer
