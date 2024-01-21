@@ -125,6 +125,6 @@ pub fn solve_equation_with_context(equation: &str, ctx: &mut ContextHashMap, gue
 /// ```
 pub fn solve_equation_from_str(equation: &str, margin: f64, limit: usize) -> anyhow::Result<(String, f64)>
 {
-    let mut ctx = new_context(); // TODO find a way to fix alloc'ing another ctx
+    let mut ctx = new_context();
     solve_equation_with_context(equation, &mut ctx, 1.0, f64::NEG_INFINITY, f64::INFINITY, margin, limit)
 }

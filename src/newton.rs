@@ -4,8 +4,6 @@ use crate::errors::NewtonRaphsonSolverError;
 
 const _DX_: f64 = 0.001; 
 
-// TODO: untangle the mess caused by having internally-produced closures return an externally defined error type
-
 /// A basic implementation of the 1-D newton-raphson method.
 /// This function allows the caller to choose an initial guess value,
 /// a margin of error, and a maximum number of iterations prior to 

@@ -116,13 +116,19 @@ impl SystemBuilder
     /// ```
     pub fn try_constrain_with(&mut self, equation: &str) -> anyhow::Result<ConstrainResult> 
     {
+        // NOTE: changed logic to abort early if system is presently constrained
+        if self.is_fully_constrained() 
+        {
+            // Return early if the system will be over-constrained or 
+            // no longer fully constrained.
+            return Ok(ConstrainResult::WillOverConstrain);
+        }
+
         let mut num_unknowns = 0;
         let mut maybe_new_var = None;
-        let sys_equations = self.system_equations.len();
-        let sys_unknowns = self.system_vars.len();
 
         let unknowns: Vec<String> = get_equation_unknowns(equation, &self.context)
-            .filter(|&x| !self.system_vars.contains(&x.to_owned()))
+            // .filter(|&x| !self.system_vars.contains(&x.to_owned()))
             .map(|x| x.to_owned())
             .collect();
 
@@ -137,14 +143,9 @@ impl SystemBuilder
             // Return early if adding the equation will not gainfully constrain the system
             return Ok(ConstrainResult::WillNotConstrain);
         }
-        else if (sys_equations + 1) > (sys_unknowns + 1) || self.is_fully_constrained() // TODO: is the OR redundant?
-        {
-            // Return early if the system will be over-constrained or 
-            // no longer fully constrained.
-            return Ok(ConstrainResult::WillOverConstrain);
-        }
+        
 
-        // Add the equation to the system
+        // Add the equation to the system, updating the context with any newly-added variables
         self.system_equations.push(
             Box::new(compile_equation_to_fn_of_hashmap(equation, &mut self.context)?)
         );
@@ -206,22 +207,24 @@ impl SystemBuilder
     ///     "(8 * x) + (9 * y) - (10 * z) = 11"])
     ///     .expect("failed to constrain system!");
     /// ```
-    pub fn try_fully_constrain_with(&mut self, equations: Vec<&str>) -> anyhow::Result<bool>
+    pub fn try_fully_constrain_with(&mut self, mut equations: Vec<&str>) -> anyhow::Result<bool>
     {
         let mut still_learning = true;
         while still_learning && !self.is_fully_constrained()
         {
             still_learning = false;
-            for equation in &equations
+            for i in 0..equations.len()
             {
-                match self.try_constrain_with(equation)
+                match self.try_constrain_with(equations[i])
                 {
                     Ok(ConstrainResult::WillNotConstrain) => {}, 
                     Ok(ConstrainResult::WillConstrain) => {
+                        equations.remove(i);
                         still_learning = true;
+                        break; // start loop over with equation removed
                     },
                     Ok(ConstrainResult::WillOverConstrain) => {
-                        break;
+                        break; // exit loop and abort
                     },
                     Err(e) => {
                         return Err(e);
