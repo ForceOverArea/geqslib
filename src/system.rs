@@ -43,7 +43,7 @@ impl SystemBuilder
     /// 
     /// let mut ctx = new_context();
     /// 
-    /// let my_sys = SystemBuilder::new("x + y = 4", &mut ctx)
+    /// let my_sys = SystemBuilder::new("x + y = 4", ctx)
     ///     .expect("failed to build system!");
     /// ```
     pub fn new(equation: &str, mut ctx: ContextHashMap) -> anyhow::Result<SystemBuilder>
@@ -71,7 +71,7 @@ impl SystemBuilder
     /// 
     /// let mut ctx = new_context();
     /// 
-    /// let my_sys = SystemBuilder::new("x + y = 4", &mut ctx)
+    /// let my_sys = SystemBuilder::new("x + y = 4", ctx)
     ///     .expect("failed to build system!");
     /// 
     /// assert_eq!(2, my_sys.get_vars().len());
@@ -97,7 +97,7 @@ impl SystemBuilder
     /// 
     /// let mut ctx = ContextHashMap::new();
     /// 
-    /// let mut my_sys = SystemBuilder::new("x + y = 9", &mut ctx)
+    /// let mut my_sys = SystemBuilder::new("x + y = 9", ctx)
     ///     .expect("failed to build system!");
     /// 
     /// // Too many unknowns to be useful to system.
@@ -170,7 +170,7 @@ impl SystemBuilder
     /// 
     /// let mut ctx = new_context();
     /// 
-    /// let mut my_sys = SystemBuilder::new("x + y = 9", &mut ctx).unwrap();
+    /// let mut my_sys = SystemBuilder::new("x + y = 9", ctx).unwrap();
     /// 
     /// assert!(!my_sys.is_fully_constrained());
     /// 
@@ -199,7 +199,7 @@ impl SystemBuilder
     /// ctx.add_var_to_ctx("y", 1.0);
     /// ctx.add_var_to_ctx("z", 1.0);
     /// 
-    /// let mut my_sys = SystemBuilder::new("x + y + z = 9", &mut ctx).unwrap();
+    /// let mut my_sys = SystemBuilder::new("x + y + z = 9", ctx).unwrap();
     /// 
     /// my_sys.try_fully_constrain_with(vec![
     ///     "(4 * x) + (5 * y) + (6 * z) = 7", 
@@ -286,15 +286,15 @@ impl System
     ///  
     /// let mut ctx = new_context();
     /// 
-    /// let mut builder = SystemBuilder::new("x + y = 9", &mut ctx)
+    /// let mut builder = SystemBuilder::new("x + y = 9", ctx)
     ///     .expect("Failed to create a system...");
     /// builder.try_constrain_with("x - y = 4");
     /// 
     /// let mut sys = builder
-    ///     .get_system()
+    ///     .build_system()
     ///     .unwrap();
     /// 
-    /// sys.specify_domain("x", 6.5, 0.0, 7.0);
+    /// sys.specify_variable("x", 6.5, 0.0, 7.0);
     /// ```
     pub fn specify_variable(&mut self, var: &str, guess: f64, min: f64, max: f64) -> bool
     {
@@ -326,12 +326,12 @@ impl System
     /// 
     /// let mut ctx = new_context();
     /// 
-    /// let mut builder = SystemBuilder::new("x + y = 9", &mut ctx)
+    /// let mut builder = SystemBuilder::new("x + y = 9", ctx)
     ///     .expect("Failed to create a system...");
     /// builder.try_constrain_with("x - y = 4");
     /// 
     /// let mut sys = builder
-    ///     .get_system()
+    ///     .build_system()
     ///     .expect("Failed to constrain system...");
     /// 
     /// let soln = sys.solve(0.0001, 10)

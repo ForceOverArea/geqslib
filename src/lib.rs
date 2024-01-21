@@ -78,7 +78,7 @@ pub (in crate) fn compile_equation_to_fn_of_hashmap(equation: &str, ctx: &mut Co
 /// 
 /// let mut ctx = new_context();
 /// 
-/// let (var, soln) = solve_equation_with_context("x + 4 = 12", &mut ctx, 0.0001, 10)
+/// let (var, soln) = solve_equation_with_context("x + 4 = 12", &mut ctx, 1.0, f64::NEG_INFINITY, f64::INFINITY, 0.0001, 10)
 ///     .expect("failed to find a solution");
 /// 
 /// assert_eq!(var, "x");
