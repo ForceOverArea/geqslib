@@ -67,11 +67,11 @@ fn abs(x: &[f64]) -> f64 {
 }
 
 fn conditional(args: &[f64]) -> f64 {
-    let a              = args[0];
-    let op             = args[1];
+    let a              = args[4];
+    let op             = args[3];
     let b              = args[2];
-    let if_true_return = args[3];
-    let else_return    = args[4];
+    let if_true_return = args[1];
+    let else_return    = args[0];
     
     let decision = |predicate| {
     if predicate {

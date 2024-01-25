@@ -146,6 +146,7 @@ fn rpnify(expr: &str, context: &ContextHashMap) -> anyhow::Result<Vec<Token>>
                     } 
                     else 
                     {
+                        stack.push(op); // put parenthesis back on stack
                         break;
                     }
                 }
