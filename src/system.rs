@@ -124,34 +124,24 @@ impl SystemBuilder
             return Ok(ConstrainResult::WillOverConstrain);
         }
 
-        let mut num_unknowns = 0;
-        let mut maybe_new_var = None;
-
-        let unknowns: Vec<String> = get_equation_unknowns(equation, &self.context)
+        let mut unknowns: Vec<String> = get_equation_unknowns(equation, &self.context)
             // .filter(|&x| !self.system_vars.contains(&x.to_owned()))
             .map(|x| x.to_owned())
             .collect();
 
-        for unknown in unknowns
-        {
-            num_unknowns += 1;
-            maybe_new_var = Some(unknown);
-        }
-
-        if  num_unknowns > 1 
+        if unknowns.len() > 1 
         {
             // Return early if adding the equation will not gainfully constrain the system
             return Ok(ConstrainResult::WillNotConstrain);
-        }
-        
+        }        
 
         // Add the equation to the system, updating the context with any newly-added variables
         self.system_equations.push(
-            Box::new(compile_equation_to_fn_of_hashmap(equation, &mut self.context)?)
+            Box::new(compile_equation_to_fn_of_hashmap(equation, &mut self.context)?) 
         );
 
         // Add possible newly-found variable to the system
-        if let Some(new_var) = maybe_new_var
+        if let Some(new_var) = unknowns.pop()
         {
             self.system_vars.push(new_var);
         }
