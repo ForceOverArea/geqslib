@@ -1,7 +1,7 @@
 [package]
 name = "geqslib"
 description = "Equation solving made easy in Rust and beyond!"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.78"
-gmatlib = "0.0.1"
+gmatlib = "0.0.3"
 lazy_static = "1.4.0"
 regex = "1.10.2"
 
