@@ -36,7 +36,7 @@ pub unsafe extern "C" fn new_context_hash_map() -> *mut c_void
 
 /// Creates a new `ContextHashMap` created via `new_context` and returns a C-compatible `void *` to it.
 #[no_mangle]
-pub unsafe extern "C" fn new_default_context_hash_map() -> *const c_void
+pub unsafe extern "C" fn new_default_context_hash_map() -> *mut c_void
 {
     leak_object(new_context()) as *mut c_void
 }
